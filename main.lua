@@ -818,7 +818,7 @@ local function createButton(parent, title, color, callback)
     }, parent)
     corner(btn, 8)
     stroke(btn, Theme.StrokeSoft, 1)
-    
+
     btn.MouseButton1Click:Connect(function()
         playSound(true)
         if callback then callback() end
@@ -829,8 +829,8 @@ local function createButton(parent, title, color, callback)
     btn.MouseLeave:Connect(function()
         TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = color or Theme.BgCard}):Play()
     end)
-    return end
-
+    return btn
+end
 -- ============================================================
 -- [ SECTION 12 ] TAB 1 - MAIN
 -- ============================================================
@@ -1279,7 +1279,6 @@ end)
 createToggle(tpTab, "CtrlClickTP", "🖱️ Ctrl + คลิก = วาร์ป", "กด Ctrl ค้างแล้วคลิกซ้ายเพื่อวาร์ป", false)
 
 refreshLocations()
-end
 
 -- ============================================================
 -- [ SECTION 16 ] TAB 5 - VISUAL
@@ -1820,7 +1819,7 @@ RunService.RenderStepped:Connect(function()
         statMap.Text = PlaceEntry.name
         statPlayers.Text = tostring(#Players:GetPlayers())
 
-        local elapsed = math.floor(tick() - State.SessionStart)
+        local elapsed = math.floor(tick() - State.SessionStเพื่อเปิด-ปิด)
         local h = math.floor(elapsed / 3600)
         local m = math.floor((elapsed % 3600) / 60)
         local s = elapsed % 60

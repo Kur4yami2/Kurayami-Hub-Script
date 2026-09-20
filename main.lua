@@ -55,14 +55,15 @@ local function safeCall(fn, ...)
 end
 
 local hasFileIO = (typeof(writefile) == "function") and (typeof(readfile) == "function")
-local hasHui    = (typeof(gethui) == "function")
 
 local function getGuiParent()
-    if hasHui then
+    if typeof(gethui) == "function" then
         local h = safeCall(gethui)
         if h then return h end
     end
-    return safeCall(function() return game:GetService("CoreGui") end) or player:WaitForChild("PlayerGui")
+    local coreOk, core = pcall(function() return game:GetService("CoreGui") end)
+    if coreOk and core then return core end
+    return player:WaitForChild("PlayerGui")
 end
 
 local function make(class, props, parent)
@@ -90,7 +91,6 @@ local function gradient(obj, c1, c2, rot)
         Rotation = rot or 0
     }, obj)
 end
-
 -- ============================================================
 -- [ SECTION 4 ] STATE MANAGEMENT
 -- ============================================================
@@ -1616,11 +1616,14 @@ RunService.Stepped:Connect(function()
 end)
 
 -- Infinite Jump
-UserInputService.JumpRequest:Connect(function()
-    if State.InfJump then
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if State.InfJump and input.KeyCode == Enum.KeyCode.Space then
         local char = player.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+        if hum then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
     end
 end)
 
@@ -1696,6 +1699,16 @@ task.spawn(function()
     end
 end)
 
+-- ผู้เล่นที่มีอยู่ก่อนเปิดสคริปต์
+for _, p in ipairs(Players:GetPlayers()) do
+    if p ~= player and p.Character then
+        p.CharacterAdded:Connect(function(c)
+            task.wait(0.5)
+            if State.ESP then applyESP(c, p) end
+        end)
+    end
+end
+
 Players.PlayerAdded:Connect(function(p)
     p.CharacterAdded:Connect(function(c)
         task.wait(0.5)
@@ -1715,6 +1728,7 @@ end)
 -- ============================================================
 local function onCharAdded(char)
     task.wait(1)
+    cleanupFly()
     local hum = char:FindFirstChildOfClass("Humanoid")
     if hum and State.God then
         local ff = Instance.new("ForceField", char)
@@ -1724,8 +1738,7 @@ local function onCharAdded(char)
 end
 
 if player.Character then onCharAdded(player.Character) end
-player.CharacterAdded:Connect(onCharAdded)
-
+player.CharacterAdded:Connect(onCharAddchar
 -- ============================================================
 -- [ SECTION 24 ] ANTI-AFK (เปิดอัตโนมัติ)
 -- ============================================================
@@ -1819,7 +1832,7 @@ RunService.RenderStepped:Connect(function()
         statMap.Text = PlaceEntry.name
         statPlayers.Text = tostring(#Players:GetPlayers())
 
-        local elapsed = math.floor(tick() - State.SessionStเพื่อเปิด-ปิด)
+        local elapsed = math.floor(tick() - State.SessionStart)
         local h = math.floor(elapsed / 3600)
         local m = math.floor((elapsed % 3600) / 60)
         local s = elapsed % 60

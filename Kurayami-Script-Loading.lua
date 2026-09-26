@@ -1,4 +1,4 @@
---============================================================
+local======================================================
 --  Kurayami-Hub | Loading Screen v14 — Fixed Music + Particles ☠️🎵
 --  Music fix: แยก pcall TimePosition / Play()  •  รอ IsLoaded
 --============================================================
@@ -151,8 +151,10 @@ local ICON_IMG = loadCustomAsset(
 --  CONFIG / THEME
 --============================================================
 local CONFIG = {
-    ScriptURL = "", MinDuration = 8.0,
-    DisplayOrder = 9000, AutoLoad = false,
+    ScriptURL    = "https://raw.githubusercontent.com/Kur4yami2/Kurayami-Hub-Script/refs/heads/main/Kurayami-Script-GUI.lua",
+    MinDuration  = 8.0,
+    DisplayOrder = 1000,          -- ⬅ 9000 → 1000 (ให้เมนูทับหน้าโหลด)
+    AutoLoad     = true,          -- ⬅ false → true (ให้โหลด K42 อัตโนมัติ)
 }
 
 local C = {

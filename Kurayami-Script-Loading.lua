@@ -178,7 +178,7 @@ local C = {
 --============================================================
 local gui = new("ScreenGui", {
     Name = "KurayamiLoader", IgnoreGuiInset = true,
-    ResetOnSpawn = false, DisplayOrder = CONFIG.DisplayOrder,
+    ResetOnSpawn = false, DisplayOrder = 1000,
     ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 }, playerGui)
 
@@ -206,39 +206,6 @@ if BG_IMG then
         ZIndex = 2,
     }, gui)
 end
-
---============================================================
---  MUTE BUTTON
---============================================================
-local muteBtn = new("TextButton", {
-    Size = UDim2.new(0, 32, 0, 32),
-    Position = UDim2.new(1, -20, 0, 14),
-    AnchorPoint = Vector2.new(1, 0),
-    BackgroundColor3 = Color3.fromRGB(14, 14, 14),
-    BackgroundTransparency = 0.2,
-    Text = "♪",
-    TextColor3 = C.BorderBright,
-    Font = Enum.Font.GothamBold, TextSize = 16,
-    BorderSizePixel = 0, AutoButtonColor = false,
-    ZIndex = 30,
-}, gui)
-circle(muteBtn)
-stroke(muteBtn, C.BorderLight, 1, 0.3)
-
-local musicOn = true
-muteBtn.MouseButton1Click:Connect(function()
-    musicOn = not musicOn
-    muteBtn.Text = musicOn and "♪" or "×"
-    if music and music.Parent then
-        tween(music, 0.25, { Volume = musicOn and MUSIC_VOLUME or 0 })
-    end
-end)
-muteBtn.MouseEnter:Connect(function()
-    tween(muteBtn, 0.1, { BackgroundTransparency = 0 })
-end)
-muteBtn.MouseLeave:Connect(function()
-    tween(muteBtn, 0.1, { BackgroundTransparency = 0.2 })
-end)
 
 --============================================================
 --  MATRIX RAIN
@@ -1096,24 +1063,54 @@ RunService.RenderStepped:Connect(function()
             tween(barFill, 0.3, { BackgroundColor3 = C.Green })
             tween(percentLbl, 0.3, { TextColor3 = C.Green })
 
-            -- MUSIC FADE OUT
+            -- หลัง 1.5 วิ เปลี่ยนข้อความเป็น "Waiting for menu..."
             task.spawn(function()
-                if music and music.Parent then
-                    local startVol = music.Volume
-                    local fadeSteps = 10
-                    for i = 1, fadeSteps do
-                        if music and music.Parent then
-                            music.Volume = startVol * (1 - i / fadeSteps)
-                        end
-                        task.wait(MUSIC_FADE_OUT / fadeSteps)
-                    end
-                    pcall(function() music:Stop() end)
-                    if music then music:Destroy() end
+                task.wait(1.5)
+                if statusLbl and statusLbl.Parent then
+                    statusLbl.Text = "Waiting for menu..."
+                    tween(statusLbl, 0.25, { TextColor3 = C.TextDim })
                 end
             end)
 
-            task.wait(0.9)
+            -- สร้าง BindableEvent รอสัญญาณ
+            local readyEvent = Instance.new("BindableEvent")
+            _G.KurayamiReadyEvent = readyEvent
 
+            local gotSignal = false
+            readyEvent.Event:Connect(function()
+                gotSignal = true
+            end)
+
+            -- โหลดสคริปต์หลักเบื้องหลัง (ไม่ destroy GUI)
+            task.spawn(function()
+                if CONFIG.AutoLoad and CONFIG.ScriptURL ~= "" then
+                    local ok, err = pcall(function()
+                        local code = game:HttpGet(CONFIG.ScriptURL)
+                        local fn = loadstring(code)
+                        if not fn then error("loadstring failed") end
+                        fn()
+                    end)
+                    if not ok then
+                        warn("[Kurayami Loader] main script error:", err)
+                        task.wait(1)
+                        pcall(function() readyEvent:Fire() end)
+                    end
+                else
+                    task.wait(2)
+                    pcall(function() readyEvent:Fire() end)
+                end
+            end)
+
+            -- รอสัญญาณ (สูงสุด 60 วิ)
+            local startWait = tick()
+            while not gotSignal and tick() - startWait < 60 do
+                task.wait(0.1)
+            end
+
+            -- เผื่อ delay ให้เมนูเรนเดอร์เสร็จ
+            task.wait(0.4)
+
+            -- Flash + Fade out
             local flash = new("Frame", {
                 Size = UDim2.fromScale(1, 1),
                 BackgroundColor3 = Color3.new(1, 1, 1),
@@ -1154,17 +1151,7 @@ RunService.RenderStepped:Connect(function()
             task.wait(0.55)
             gui:Destroy()
 
-            if CONFIG.AutoLoad and CONFIG.ScriptURL ~= "" then
-                local ok, err = pcall(function()
-                    local code = game:HttpGet(CONFIG.ScriptURL)
-                    local fn = loadstring(code)
-                    if not fn then error("loadstring failed") end
-                    fn()
-                end)
-                if not ok then warn("[Kurayami Loader] main script error:", err) end
-            else
-                print("[Kurayami Loader] done. Attach main script here.")
-            end
+            _G.KurayamiReadyEvent = nil
         end)
     end
 end)

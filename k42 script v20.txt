@@ -1,0 +1,2244 @@
+--============================================================
+--  Kurayami-Hub | v20
+--  By Kur4yami2  •  Enjoy!
+--============================================================
+
+local Players          = game:GetService("Players")
+local TweenService     = game:GetService("TweenService")
+local UIS              = game:GetService("UserInputService")
+local RunService       = game:GetService("RunService")
+local TeleportService  = game:GetService("TeleportService")
+local HttpService      = game:GetService("HttpService")
+local Stats            = game:GetService("Stats")
+
+local plr       = Players.LocalPlayer
+local playerGui = plr:WaitForChild("PlayerGui")
+local mouse     = plr:GetMouse()
+local cam       = workspace.CurrentCamera
+
+--============================================================
+--  CUSTOM ASSETS  (GitHub)
+--============================================================
+local function loadCustomAsset(url, filename)
+    local ok, data = pcall(function() return game:HttpGet(url) end)
+    if not ok or not data or type(data) ~= "string" or #data < 100 then return nil end
+    local writeOk = pcall(function() writefile(filename, data) end)
+    if not writeOk then return nil end
+    local assetOk, asset = pcall(function() return getcustomasset(filename) end)
+    if assetOk and asset and type(asset) == "string" then return asset end
+    return nil
+end
+
+local BG_IMG = loadCustomAsset(
+    "https://raw.githubusercontent.com/Kur4yami2/Kurayami-Hub-Script/refs/heads/main/media_1790369776.png",
+    "kurayami_bg.png"
+)
+local ICON_IMG = loadCustomAsset(
+    "https://raw.githubusercontent.com/Kur4yami2/Kurayami-Hub-Script/refs/heads/main/media_1790369629.png",
+    "kurayami_icon.png"
+)
+
+--============================================================
+--  THEME
+--============================================================
+local C = {
+    ColorBg           = Color3.fromRGB(8, 8, 8),
+    ColorBgHeader     = Color3.fromRGB(14, 14, 14),
+    ColorBgSidebar    = Color3.fromRGB(10, 10, 10),
+    ColorBgHover      = Color3.fromRGB(28, 28, 28),
+    ColorBgItem       = Color3.fromRGB(22, 22, 22),
+    ColorBgItemHover  = Color3.fromRGB(36, 36, 36),
+
+    ColorBorder       = Color3.fromRGB(42, 42, 42),
+    ColorBorderLight  = Color3.fromRGB(90, 90, 90),
+    ColorBorderBright = Color3.fromRGB(230, 230, 230),
+
+    ColorText         = Color3.fromRGB(235, 235, 235),
+    ColorTextDim      = Color3.fromRGB(135, 135, 135),
+    ColorTextActive   = Color3.fromRGB(8, 8, 8),
+
+    ColorToggleOn     = Color3.fromRGB(255, 255, 255),
+    ColorToggleOff    = Color3.fromRGB(45, 45, 45),
+    ColorRed          = Color3.fromRGB(255, 50, 50),
+    ColorGreen        = Color3.fromRGB(100, 200, 120),
+
+    WindowScaleX      = 0.82,
+    WindowScaleY      = 0.78,
+    Corner            = 10,
+    HeaderHeight      = 48,
+    BottomBarHeight   = 10,
+
+    BtnTransparency   = 0.35,
+
+    Title             = "Kurayami-Hub  |  v20",
+    Subtitle          = "By Kur4yami2  •  Enjoy!",
+    BackgroundImage   = BG_IMG,
+    ToggleImage       = ICON_IMG,
+}
+
+local ZI = 60
+
+--============================================================
+--  HELPERS
+--============================================================
+local function new(class, props, parent)
+    local o = Instance.new(class)
+    for k, v in pairs(props) do if k ~= "Parent" then o[k] = v end end
+    if parent then o.Parent = parent end
+    return o
+end
+local function corner(p, r) return new("UICorner", {CornerRadius = UDim.new(0, r)}, p) end
+local function circle(p) return new("UICorner", {CornerRadius = UDim.new(1, 0)}, p) end
+local function stroke(p, c, t, tr) return new("UIStroke", {Color = c, Thickness = t, Transparency = tr or 0}, p) end
+local function tween(o, t, p, s, d)
+    local tw = TweenService:Create(o, TweenInfo.new(t, s or Enum.EasingStyle.Quad, d or Enum.EasingDirection.Out), p)
+    tw:Play(); return tw
+end
+local function clamp(v, a, b) return math.clamp(v, a, b) end
+
+--============================================================
+--  CLEANUP
+--============================================================
+for _, n in ipairs({"KurayamiHub","KurayamiToggle","KurayamiNotify","KurayamiClickTP","KurayamiModal","KurayamiDot","KurayamiMiniTP"}) do
+    local o = playerGui:FindFirstChild(n)
+    if o then o:Destroy() end
+end
+local oldRing = workspace:FindFirstChild("KurayamiRadiusIndicator")
+if oldRing then oldRing:Destroy() end
+
+--============================================================
+--  NOTIFICATION  (DisplayOrder = 2002)
+--============================================================
+local NotifyGui = new("ScreenGui", {Name = "KurayamiNotify", IgnoreGuiInset = true, ResetOnSpawn = false, DisplayOrder = 2002}, playerGui)
+local notifyHolder = new("Frame", {
+    AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -20, 0.55, 0),
+    Size = UDim2.new(0, 300, 0, 0), BackgroundTransparency = 1,
+    AutomaticSize = Enum.AutomaticSize.Y,
+}, NotifyGui)
+new("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, VerticalAlignment = Enum.VerticalAlignment.Center}, notifyHolder)
+
+local N = {
+    Width = 300, Height = 54, Corner = 8, SlideIn = 0.2, SlideOut = 0.15, DefaultDur = 2.5,
+    Types = {
+        success = {color = Color3.fromRGB(100,200,120), icon = "+"},
+        info    = {color = Color3.fromRGB(160,160,160), icon = "i"},
+        warning = {color = Color3.fromRGB(220,170,60),  icon = "!"},
+        error   = {color = Color3.fromRGB(200,70,70),   icon = "x"},
+    },
+}
+local notifyOrder = 0
+local function Notify(title, text, ntype, duration)
+    ntype = ntype or "info"; duration = duration or N.DefaultDur
+    local conf = N.Types[ntype] or N.Types.info
+    local card = new("Frame", {
+        Size = UDim2.new(0, N.Width, 0, N.Height),
+        Position = UDim2.new(1, N.Width + 40, 0, 0),
+        BackgroundColor3 = C.ColorBg, BackgroundTransparency = 0.4,
+        BorderSizePixel = 0, LayoutOrder = notifyOrder, ZIndex = 1,
+    }, notifyHolder)
+    notifyOrder = notifyOrder + 1
+    corner(card, N.Corner)
+    local cs = stroke(card, C.ColorBorderLight, 1, 0.5)
+    local ih = new("Frame", {Size = UDim2.new(0, 26, 0, 26), Position = UDim2.new(0, 14, 0.5, -13), BackgroundColor3 = conf.color, BackgroundTransparency = 0.3, BorderSizePixel = 0, ZIndex = 3}, card)
+    circle(ih)
+    new("TextLabel", {Size = UDim2.new(1,0,1,0), BackgroundTransparency = 1, Text = conf.icon, TextColor3 = Color3.new(1,1,1), Font = Enum.Font.SourceSansBold, TextSize = 16, ZIndex = 4}, ih)
+    new("TextLabel", {Size = UDim2.new(1,-80,0,18), Position = UDim2.new(0,50,0,8), BackgroundTransparency = 1, Text = title or "Kurayami", TextColor3 = C.ColorText, Font = Enum.Font.SourceSansBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3}, card)
+    new("TextLabel", {Size = UDim2.new(1,-80,0,14), Position = UDim2.new(0,50,0,26), BackgroundTransparency = 1, Text = text or "", TextColor3 = C.ColorTextDim, Font = Enum.Font.SourceSans, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 3}, card)
+    local pb = new("Frame", {Size = UDim2.new(1,-16,0,2), Position = UDim2.new(0,8,1,-5), BackgroundColor3 = Color3.fromRGB(30,30,30), BackgroundTransparency = 0.5, BorderSizePixel = 0, ZIndex = 3}, card)
+    corner(pb, 1)
+    local pr = new("Frame", {Size = UDim2.new(1,0,1,0), BackgroundColor3 = conf.color, BackgroundTransparency = 0.5, BorderSizePixel = 0, ZIndex = 4}, pb)
+    corner(pr, 1)
+    tween(card, N.SlideIn, {Position = UDim2.new(1,0,0,0)}, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+    tween(pr, duration, {Size = UDim2.new(0,0,1,0)}, Enum.EasingStyle.Linear)
+    task.delay(duration, function()
+        if not card or not card.Parent then return end
+        tween(card, N.SlideOut, {Position = UDim2.new(1, N.Width + 40, 0, 0)})
+        tween(card, N.SlideOut, {BackgroundTransparency = 1})
+        cs.Transparency = 1
+        task.wait(N.SlideOut + 0.05)
+        if card then card:Destroy() end
+    end)
+end
+
+--============================================================
+--  FLY MENU INTEGRATION
+--============================================================
+local FLY_URL = "https://rizz-rxs.xyz/Onyx-Zero/api?key=07451879afd523f4b12e762d5557ac97&_s=2e37894b513be9e52700e1be0ea58c57b20c9ac87906966279f3ec6eeaea2c9c"
+
+local function LoadFlyMenu()
+    if _G.KurayamiFlyGui and _G.KurayamiFlyGui.IsOpen and _G.KurayamiFlyGui.IsOpen() then
+        _G.KurayamiFlyGui.Open()
+        Notify("Fly Menu", "Already open", "info", 1.5)
+        return
+    end
+    local ok, err = pcall(function()
+        local code = game:HttpGet(FLY_URL)
+        if not code or code == "" then error("Empty response") end
+        local fn = loadstring(code)
+        if not fn then error("loadstring returned nil") end
+        fn()
+    end)
+    if ok then
+        Notify("Fly Menu", "Loaded successfully", "success")
+    else
+        Notify("Fly Menu", "Load failed", "error")
+        warn("[Kurayami] Fly load error:", err)
+    end
+end
+
+--============================================================
+--  MODAL CONFIRM  (DisplayOrder = 2003)
+--============================================================
+local ModalGui = new("ScreenGui", {Name = "KurayamiModal", IgnoreGuiInset = true, ResetOnSpawn = false, DisplayOrder = 2003}, playerGui)
+local modalBackdrop = new("Frame", {Size = UDim2.new(1,0,1,0), BackgroundColor3 = Color3.new(0,0,0), BackgroundTransparency = 0.5, BorderSizePixel = 0, Visible = false, ZIndex = 1}, ModalGui)
+local modalBox = new("Frame", {
+    Size = UDim2.new(0, 320, 0, 0), Position = UDim2.new(0.5,-160,0.5,-80),
+    BackgroundColor3 = C.ColorBg, BackgroundTransparency = 0.05,
+    BorderSizePixel = 0, Visible = false, ZIndex = 2, AutomaticSize = Enum.AutomaticSize.Y,
+}, ModalGui)
+corner(modalBox, 12)
+stroke(modalBox, C.ColorBorderBright, 1.5, 0)
+new("UIPadding", {PaddingTop = UDim.new(0,16), PaddingBottom = UDim.new(0,14), PaddingLeft = UDim.new(0,16), PaddingRight = UDim.new(0,16)}, modalBox)
+new("UIListLayout", {Padding = UDim.new(0,10), SortOrder = Enum.SortOrder.LayoutOrder}, modalBox)
+new("TextLabel", {Size = UDim2.new(1,0,0,22), BackgroundTransparency = 1, Text = "Confirmation", TextColor3 = C.ColorText, Font = Enum.Font.SourceSansBold, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 1, ZIndex = 3}, modalBox)
+local modalMsg = new("TextLabel", {Size = UDim2.new(1,0,0,0), BackgroundTransparency = 1, Text = "", TextColor3 = C.ColorTextDim, Font = Enum.Font.SourceSans, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextWrapped = true, AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2, ZIndex = 3}, modalBox)
+local mbr = new("Frame", {Size = UDim2.new(1,0,0,32), BackgroundTransparency = 1, LayoutOrder = 3, ZIndex = 3}, modalBox)
+new("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0,8), SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Right}, mbr)
+local mNo = new("TextButton", {Size = UDim2.new(0,90,1,0), BackgroundColor3 = C.ColorBgItem, BackgroundTransparency = 0.2, Text = "Cancel", TextColor3 = C.ColorText, Font = Enum.Font.SourceSansBold, TextSize = 13, BorderSizePixel = 0, AutoButtonColor = false, LayoutOrder = 1, ZIndex = 4}, mbr)
+corner(mNo, 6); stroke(mNo, C.ColorBorder, 1, 0.3)
+local mYes = new("TextButton", {Size = UDim2.new(0,90,1,0), BackgroundColor3 = C.ColorBorderBright, Text = "Confirm", TextColor3 = C.ColorTextActive, Font = Enum.Font.SourceSansBold, TextSize = 13, BorderSizePixel = 0, AutoButtonColor = false, LayoutOrder = 2, ZIndex = 4}, mbr)
+corner(mYes, 6)
+local confirmCb = nil
+local function ShowConfirm(title, message, cb)
+    modalMsg.Text = message or ""
+    confirmCb = cb
+    modalBackdrop.Visible = true
+    modalBox.Visible = true
+    task.wait()
+    modalBox.Position = UDim2.new(0.5, -160, 0.5, -(modalBox.AbsoluteSize.Y/2))
+end
+local function HideModal()
+    modalBackdrop.Visible = false; modalBox.Visible = false; confirmCb = nil
+end
+mNo.MouseButton1Click:Connect(HideModal)
+modalBackdrop.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then HideModal() end
+end)
+mYes.MouseButton1Click:Connect(function()
+    local cb = confirmCb; HideModal(); if cb then cb() end
+end)
+
+--============================================================
+--  MAIN GUI  (DisplayOrder = 1999)
+--============================================================
+local gui = new("ScreenGui", {Name = "KurayamiHub", IgnoreGuiInset = true, ResetOnSpawn = false, DisplayOrder = 1999}, playerGui)
+local toggleGui = new("ScreenGui", {Name = "KurayamiToggle", IgnoreGuiInset = true, ResetOnSpawn = false, DisplayOrder = 2000}, playerGui)
+
+local toggleRing = new("Frame", {Size = UDim2.new(0,52,0,52), Position = UDim2.new(0,20,1,-90), BackgroundTransparency = 1}, toggleGui)
+circle(toggleRing); stroke(toggleRing, C.ColorBorderBright, 2, 0)
+local toggle = new("TextButton", {Size = UDim2.new(0,52,0,52), Position = UDim2.new(0,20,1,-90), BackgroundColor3 = C.ColorBg, BorderSizePixel = 0, Text = "", AutoButtonColor = false, ClipsDescendants = true}, toggleGui)
+circle(toggle); stroke(toggle, C.ColorBorderBright, 2, 0)
+if ICON_IMG then
+    local tIcon = new("ImageLabel", {Size = UDim2.new(1,0,1,0), BackgroundTransparency = 1, Image = ICON_IMG, ScaleType = Enum.ScaleType.Crop}, toggle)
+    circle(tIcon)
+end
+
+-- Animated glow on toggle ring
+local tGlowStroke = stroke(toggleRing, Color3.new(1, 1, 1), 3, 0.7)
+TweenService:Create(tGlowStroke,
+    TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+    { Transparency = 1, Thickness = 5 }
+):Play()
+
+local holder = new("Frame", {
+    AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new(0.5,0,0.5,0),
+    Size = UDim2.new(C.WindowScaleX,0,C.WindowScaleY,0), BackgroundTransparency = 1, Active = false,
+}, gui)
+local holderScale = new("UIScale", {Scale = 1}, holder)
+
+local shadowC = new("Frame", {Size = UDim2.new(1,0,1,0), BackgroundTransparency = 1, ZIndex = 0, Active = false}, holder)
+for i, L in ipairs({{2,3,0.5},{3,6,0.65},{4,10,0.78},{5,15,0.9}}) do
+    local f = new("Frame", {
+        Size = UDim2.new(1,L[2],1,L[2]), Position = UDim2.new(0,-L[2]/2,0,-L[2]/2+L[1]),
+        BackgroundColor3 = Color3.new(0,0,0), BackgroundTransparency = L[3], BorderSizePixel = 0, ZIndex = i, Active = false,
+    }, shadowC)
+    corner(f, C.Corner + L[2]/2)
+end
+
+local window = new("Frame", {
+    Size = UDim2.new(1,0,1,0), BackgroundColor3 = C.ColorBg, BackgroundTransparency = 0.15,
+    BorderSizePixel = 0, ZIndex = 50, ClipsDescendants = true,
+}, holder)
+corner(window, C.Corner)
+local windowStroke = stroke(window, C.ColorBorderLight, 2.5, 0)
+new("UIGradient", {Rotation = 90, Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(14,14,14)),
+    ColorSequenceKeypoint.new(1, C.ColorBg),
+}), Transparency = NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 0.15),
+    NumberSequenceKeypoint.new(1, 0.15),
+})}, window)
+
+-- Animated gradient border
+local borderGrad = new("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 255, 255)),
+        ColorSequenceKeypoint.new(0.25, Color3.fromRGB(40, 40, 40)),
+        ColorSequenceKeypoint.new(0.50, Color3.fromRGB(255, 255, 255)),
+        ColorSequenceKeypoint.new(0.75, Color3.fromRGB(40, 40, 40)),
+        ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 255, 255)),
+    }),
+}, windowStroke)
+TweenService:Create(borderGrad,
+    TweenInfo.new(4, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1),
+    { Rotation = 360 }
+):Play()
+
+-- Border pulse
+TweenService:Create(windowStroke,
+    TweenInfo.new(2.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+    { Thickness = 3.5, Transparency = 0.2 }
+):Play()
+
+local wbg = nil
+if BG_IMG then
+    wbg = new("ImageLabel", {Size = UDim2.new(1,0,1,0), BackgroundTransparency = 1, Image = BG_IMG, ImageTransparency = 0.6, ScaleType = Enum.ScaleType.Crop, ZIndex = 51}, window)
+    corner(wbg, C.Corner)
+end
+
+--============================================================
+--  AMBIENT PARTICLES (background, inside window)
+--============================================================
+local ambientP = {}
+for i = 1, 20 do
+    local s = math.random(2, 4)
+    local p = new("Frame", {
+        Size = UDim2.new(0, s, 0, s),
+        Position = UDim2.new(math.random(0, 100) / 100, 0, math.random(0, 100) / 100, 0),
+        BackgroundColor3 = Color3.fromRGB(200, 200, 200),
+        BackgroundTransparency = math.random(60, 85) / 100,
+        BorderSizePixel = 0, ZIndex = 51,
+    }, window)
+    circle(p)
+    ambientP[i] = {
+        obj = p,
+        vy = -(math.random(8, 20) / 1000),
+        vx = math.random(-5, 5) / 2000,
+        phase = math.random(0, 360),
+    }
+end
+
+RunService.RenderStepped:Connect(function(dt)
+    if not window or not window.Parent then return end
+    for _, a in ipairs(ambientP) do
+        local pos = a.obj.Position
+        local ny = pos.Y.Scale + a.vy * dt
+        local nx = pos.X.Scale + math.sin(math.rad(a.phase)) * a.vx * dt
+        a.phase = a.phase + 30 * dt
+        if ny < -0.05 then ny = 1.05 end
+        if nx < -0.05 then nx = 1.05 end
+        if nx > 1.05 then nx = -0.05 end
+        a.obj.Position = UDim2.new(nx, 0, ny, 0)
+        a.obj.BackgroundTransparency = 0.6 + math.sin(math.rad(a.phase)) * 0.15
+    end
+end)
+
+--============================================================
+--  EDGE PARTICLES (glued inside window edges)
+--============================================================
+local edgeP = {}
+for side = 1, 4 do
+    for i = 1, 3 do
+        local s = math.random(3, 5)
+        local p = new("Frame", {
+            Size = UDim2.new(0, s, 0, s),
+            BackgroundColor3 = C.ColorBorderBright,
+            BackgroundTransparency = math.random(30, 60) / 100,
+            BorderSizePixel = 0, ZIndex = 60,
+        }, window)
+        circle(p)
+        edgeP[#edgeP + 1] = {
+            obj = p, side = side,
+            prog = (i - 1) / 3,
+            speed = 0.04 + math.random(0, 20) / 1000,
+        }
+    end
+end
+
+RunService.RenderStepped:Connect(function(dt)
+    if not window or not window.Parent then return end
+    for _, e in ipairs(edgeP) do
+        e.prog = e.prog + e.speed * dt
+        if e.prog > 1 then e.prog = 0 end
+        local s = e.obj.AbsoluteSize.X
+        local pos
+        if e.side == 1 then
+            pos = UDim2.new(e.prog, -s/2, 0, 0)
+        elseif e.side == 2 then
+            pos = UDim2.new(1, -s, e.prog, -s/2)
+        elseif e.side == 3 then
+            pos = UDim2.new(1 - e.prog, -s/2, 1, -s)
+        else
+            pos = UDim2.new(0, 0, 1 - e.prog, -s/2)
+        end
+        e.obj.Position = pos
+    end
+end)
+
+--============================================================
+--  GLITCH FLASH (inside window only)
+--============================================================
+task.spawn(function()
+    while window.Parent do
+        task.wait(math.random(5, 10))
+        local flash = new("Frame", {
+            Size = UDim2.fromScale(1, 1),
+            BackgroundColor3 = C.ColorBorderBright,
+            BackgroundTransparency = 0.92,
+            BorderSizePixel = 0, ZIndex = 60,
+        }, window)
+        tween(flash, 0.05, { BackgroundTransparency = 0.75 })
+        task.wait(0.05)
+        flash:Destroy()
+    end
+end)
+
+local header = new("Frame", {Size = UDim2.new(1,0,0,C.HeaderHeight), BackgroundColor3 = C.ColorBgHeader, BackgroundTransparency = 0.15, BorderSizePixel = 0, ZIndex = 53, Active = true}, window)
+corner(header, C.Corner)
+local headerMask = new("Frame", {Size = UDim2.new(1,0,0,12), Position = UDim2.new(0,0,1,-12), BackgroundColor3 = C.ColorBgHeader, BackgroundTransparency = 0.15, BorderSizePixel = 0, ZIndex = 53}, header)
+new("Frame", {Size = UDim2.new(1,0,0,1), Position = UDim2.new(0,0,1,-1), BackgroundColor3 = C.ColorBorderLight, BorderSizePixel = 0, ZIndex = 54, BackgroundTransparency = 0.5}, header)
+new("TextLabel", {Size = UDim2.new(1,-80,0,18), Position = UDim2.new(0,16,0,8), BackgroundTransparency = 1, Text = C.Title, TextColor3 = C.ColorText, Font = Enum.Font.SourceSansBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 55}, header)
+new("TextLabel", {Size = UDim2.new(1,-80,0,14), Position = UDim2.new(0,16,0,26), BackgroundTransparency = 1, Text = C.Subtitle, TextColor3 = C.ColorTextDim, Font = Enum.Font.SourceSans, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 55}, header)
+
+local btnTglFrame = new("Frame", {Size = UDim2.new(0,28,0,28), Position = UDim2.new(1,-38,0.5,-14), BackgroundTransparency = 1, ZIndex = 55}, header)
+circle(btnTglFrame); stroke(btnTglFrame, C.ColorBorderBright, 1.5, 0)
+local btnTgl = new("TextButton", {
+    Size = UDim2.new(1,0,1,0), BackgroundColor3 = C.ColorBg, BorderSizePixel = 0,
+    Text = "×", TextColor3 = C.ColorBorderBright, Font = Enum.Font.SourceSansBold,
+    TextSize = 20, AutoButtonColor = false, ZIndex = 56, Rotation = 0,
+}, btnTglFrame)
+circle(btnTgl)
+
+local body = new("Frame", {Size = UDim2.new(1,0,1,-C.HeaderHeight-C.BottomBarHeight), Position = UDim2.new(0,0,0,C.HeaderHeight), BackgroundTransparency = 1, ZIndex = 52}, window)
+local sidebar = new("Frame", {Size = UDim2.new(0.32,0,1,0), BackgroundColor3 = C.ColorBgSidebar, BackgroundTransparency = 0.15, BorderSizePixel = 0, ZIndex = 53, ClipsDescendants = true}, body)
+stroke(sidebar, C.ColorBorder, 1, 0.5)
+
+local sideScroll = new("ScrollingFrame", {
+    Size = UDim2.new(1,-8,1,-8), Position = UDim2.new(0,4,0,4),
+    BackgroundTransparency = 1, BorderSizePixel = 0,
+    ScrollBarThickness = 3, ScrollBarImageColor3 = C.ColorBorderLight,
+    CanvasSize = UDim2.new(0,0,0,0),
+    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+    ScrollingDirection = Enum.ScrollingDirection.Y,
+    ZIndex = 54,
+}, sidebar)
+new("UIListLayout", {Padding = UDim.new(0,3), SortOrder = Enum.SortOrder.LayoutOrder}, sideScroll)
+new("Frame", {Size = UDim2.new(0,1,1,0), Position = UDim2.new(0.32,0,0,0), BackgroundColor3 = C.ColorBorder, BackgroundTransparency = 0.5, BorderSizePixel = 0, ZIndex = 55}, body)
+
+local content = new("ScrollingFrame", {
+    Size = UDim2.new(0.68,-8,1,-8), Position = UDim2.new(0.32,8,0,4),
+    BackgroundTransparency = 1, BorderSizePixel = 0,
+    ScrollBarThickness = 3, ScrollBarImageColor3 = C.ColorBorderLight,
+    CanvasSize = UDim2.new(0,0,0,0),
+    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+    ScrollingDirection = Enum.ScrollingDirection.Y,
+    ZIndex = 54,
+}, body)
+new("UIListLayout", {Padding = UDim.new(0,10), SortOrder = Enum.SortOrder.LayoutOrder}, content)
+
+local bottomBar = new("Frame", {
+    Size = UDim2.new(1,-20,0,4), Position = UDim2.new(0.5,0,1,-5),
+    AnchorPoint = Vector2.new(0.5,0.5), BackgroundColor3 = C.ColorBorderBright,
+    BackgroundTransparency = 0.7, BorderSizePixel = 0, ZIndex = 56, Active = true,
+}, window)
+corner(bottomBar, 2)
+
+--============================================================
+--  AIM DOT  (DisplayOrder = 2001)
+--============================================================
+local dotGui = new("ScreenGui", {Name = "KurayamiDot", IgnoreGuiInset = true, ResetOnSpawn = false, DisplayOrder = 2001}, playerGui)
+local aimDot = new("Frame", {
+    Size = UDim2.new(0,14,0,14), Position = UDim2.new(0.5,-7,0.5,-7),
+    BackgroundColor3 = Color3.fromRGB(255,255,255), BackgroundTransparency = 0.2,
+    BorderSizePixel = 0, Visible = false,
+}, dotGui)
+circle(aimDot)
+stroke(aimDot, Color3.fromRGB(0,0,0), 1, 0.3)
+
+local function setDotColor(color) aimDot.BackgroundColor3 = color end
+local function setDotSize(size)
+    aimDot.Size = UDim2.new(0, size, 0, size)
+    aimDot.Position = UDim2.new(0.5, -size/2, 0.5, -size/2)
+end
+
+function _G.KurayamiTPCrosshair()
+    local vp = cam.ViewportSize
+    local ray = cam:ViewportPointToRay(vp.X/2, vp.Y/2)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    if plr.Character then params.FilterDescendantsInstances = {plr.Character} end
+    local result = workspace:Raycast(ray.Origin, ray.Direction * 5000, params)
+    local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+    if result and hrp then
+        hrp.CFrame = CFrame.new(result.Position + Vector3.new(0, 3, 0))
+    end
+end
+
+--============================================================
+--  TP RADIUS INDICATOR
+--============================================================
+local tpRadiusValue = 500
+local tpRingEnabled = false
+local tpRingPart = nil
+local _dotSize = 14
+
+local function setRingEnabled(state)
+    tpRingEnabled = state
+    if state then
+        if tpRingPart then tpRingPart:Destroy() end
+        tpRingPart = new("Part", {
+            Name = "KurayamiRadiusIndicator",
+            Shape = Enum.PartType.Cylinder,
+            Size = Vector3.new(0.15, tpRadiusValue * 2, tpRadiusValue * 2),
+            Anchored = true, CanCollide = false, CastShadow = false,
+            Material = Enum.Material.Neon,
+            Color = Color3.fromRGB(255, 255, 255),
+            Transparency = 0.7,
+            Position = Vector3.new(0, -100, 0),
+        }, workspace)
+    else
+        if tpRingPart then tpRingPart:Destroy(); tpRingPart = nil end
+    end
+end
+
+local function setRadius(v)
+    tpRadiusValue = math.floor(v)
+    if tpRingPart then
+        tpRingPart.Size = Vector3.new(0.15, tpRadiusValue * 2, tpRadiusValue * 2)
+    end
+end
+
+task.spawn(function()
+    while true do
+        if tpRingEnabled and tpRingPart and tpRingPart.Parent then
+            local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                tpRingPart.CFrame = CFrame.new(hrp.Position - Vector3.new(0, 2.95, 0)) * CFrame.Angles(0, 0, math.rad(90))
+            end
+        end
+        task.wait()
+    end
+end)
+
+--============================================================
+--  TP CORE
+--============================================================
+local TP = {}
+local loopActive = false
+local loopThread = nil
+local savedWaypoints = {}
+local wpFolder = nil
+
+local function getHRP(ch) return ch and ch:FindFirstChild("HumanoidRootPart") end
+
+function TP.toPlayer(name)
+    local t = Players:FindFirstChild(name)
+    if not t then Notify("Error", "Player not found", "error"); return end
+    local m, th = getHRP(plr.Character), getHRP(t.Character)
+    if m and th then m.CFrame = th.CFrame + Vector3.new(0,3,0); Notify("TP", "Teleported to "..t.Name, "success") end
+end
+function TP.bringPlayer(name)
+    local t = Players:FindFirstChild(name)
+    if not t or not t.Character then Notify("Error", "Player not found", "error"); return end
+    local m, th = getHRP(plr.Character), getHRP(t.Character)
+    if m and th then th.CFrame = m.CFrame + Vector3.new(0,3,0); Notify("Bring", "Brought "..t.Name, "success") end
+end
+function TP.behindPlayer(name)
+    local t = Players:FindFirstChild(name)
+    if not t or not t.Character then Notify("Error", "Player not found", "error"); return end
+    local m, th = getHRP(plr.Character), getHRP(t.Character)
+    if m and th then m.CFrame = th.CFrame + th.CFrame.LookVector * -5 + Vector3.new(0,3,0); Notify("TP", "Teleported behind "..t.Name, "success") end
+end
+function TP.allToMe()
+    local m = getHRP(plr.Character); if not m then return end
+    local count = 0
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= plr and p.Character then
+            local h = getHRP(p.Character)
+            if h then
+                local dist = (h.Position - m.Position).Magnitude
+                if dist <= tpRadiusValue then
+                    h.CFrame = m.CFrame + Vector3.new(0,3,0)
+                    count = count + 1
+                end
+            end
+        end
+    end
+    Notify("TP", "Pulled "..count.." players (radius "..tpRadiusValue..")", "success")
+end
+function TP.toCoords(x,y,z)
+    local h = getHRP(plr.Character); if h then h.CFrame = CFrame.new(x,y,z); Notify("TP", "Teleported", "success") end
+end
+function TP.toMouse()
+    if mouse and mouse.Hit then
+        local h = getHRP(plr.Character); if h then h.CFrame = mouse.Hit + Vector3.new(0,3,0) end
+    end
+end
+
+local clickTPActive = false
+local toolEquip = false
+local ctTool, ctGui, ctConn = nil, nil, nil
+local TOOL_NAME = "Click To Horizon By Kur4yami2"
+
+function TP.enableClickTP()
+    if clickTPActive then return end
+    clickTPActive = true
+    ctGui = new("ScreenGui", {Name = "KurayamiClickTP", IgnoreGuiInset = true, ResetOnSpawn = false, DisplayOrder = 1200}, playerGui)
+    local ind = new("Frame", {Size = UDim2.new(0,240,0,30), Position = UDim2.new(0.5,-120,0,60), BackgroundColor3 = C.ColorBg, BackgroundTransparency = 0.5, BorderSizePixel = 0, Visible = false}, ctGui)
+    corner(ind, 8); stroke(ind, C.ColorBorderLight, 1, 0.5)
+    new("TextLabel", {Size = UDim2.new(1,0,1,0), BackgroundTransparency = 1, Text = TOOL_NAME, TextColor3 = C.ColorTextDim, Font = Enum.Font.SourceSans, TextSize = 11}, ind)
+    local bp = plr:FindFirstChildOfClass("Backpack")
+    if bp then
+        ctTool = new("Tool", {Name = TOOL_NAME, CanBeDropped = false, RequiresHandle = false}, bp)
+        new("Part", {Name = "Handle", Transparency = 1, Size = Vector3.new(0.1,0.1,0.1), CanCollide = false, Massless = true}, ctTool)
+        ctTool.GripPos = Vector3.new(0,0,0)
+        ctTool.Equipped:Connect(function() toolEquip = true; ind.Visible = true end)
+        ctTool.Unequipped:Connect(function() toolEquip = false; ind.Visible = false end)
+    end
+    ctConn = UIS.InputBegan:Connect(function(input)
+        if not clickTPActive or not toolEquip then return end
+        if UIS:GetFocusedTextBox() then return end
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            local gos = playerGui:GetGuiObjectsAtPosition(input.Position.X, input.Position.Y)
+            for _, g in ipairs(gos) do 
+                if g:IsDescendantOf(ctGui) or g:IsDescendantOf(gui) then return end
+                local miniGuiRef = playerGui:FindFirstChild("KurayamiMiniTP")
+                if miniGuiRef and g:IsDescendantOf(miniGuiRef) then return end
+            end
+            if mouse and mouse.Target then
+                local h = getHRP(plr.Character); if h then h.CFrame = mouse.Hit + Vector3.new(0,3,0) end
+            end
+        end
+    end)
+end
+function TP.disableClickTP()
+    clickTPActive = false; toolEquip = false
+    if ctConn then ctConn:Disconnect(); ctConn = nil end
+    if ctTool then ctTool:Destroy(); ctTool = nil end
+    if ctGui then ctGui:Destroy(); ctGui = nil end
+end
+
+local function refreshWpVisual(name, pos)
+    if not wpFolder then wpFolder = new("Folder", {Name = "KurayamiWaypoints"}, workspace) end
+    local old = wpFolder:FindFirstChild(name); if old then old:Destroy() end
+    local p = new("Part", {Name = name, Size = Vector3.new(2,2,2), Position = pos, Anchored = true, CanCollide = false, Material = Enum.Material.Neon, Color = Color3.fromRGB(220,220,220), Transparency = 0.5}, wpFolder)
+    local bg = new("BillboardGui", {Size = UDim2.new(0,100,0,30), StudsOffset = Vector3.new(0,4,0), AlwaysOnTop = true}, p)
+    new("TextLabel", {Size = UDim2.new(1,0,1,0), BackgroundTransparency = 1, Text = name, TextColor3 = Color3.new(1,1,1), Font = Enum.Font.SourceSansBold, TextSize = 14}, bg)
+end
+
+--============================================================
+--  STORAGE SYSTEM
+--============================================================
+local WAYPOINT_FILE = "kurayami_waypoints_" .. tostring(game.PlaceId) .. ".json"
+local CONFIG_FILE   = "kurayami_configs.json"
+local AUTOLOAD_FILE = "kurayami_autoload.json"
+
+local allConfigs = {}
+local currentAutoload = nil
+
+local function persistWaypoints()
+    local ok, enc = pcall(function() return HttpService:JSONEncode(savedWaypoints) end)
+    if ok then pcall(function() if writefile then writefile(WAYPOINT_FILE, enc) end end) end
+end
+
+local function loadWaypoints()
+    local ok, data = pcall(function() if readfile then return readfile(WAYPOINT_FILE) end; return nil end)
+    if ok and data then
+        local ok2, dec = pcall(function() return HttpService:JSONDecode(data) end)
+        if ok2 and dec and type(dec) == "table" then
+            savedWaypoints = dec
+            for n, w in pairs(savedWaypoints) do
+                refreshWpVisual(n, Vector3.new(w.x, w.y, w.z))
+            end
+        end
+    end
+end
+
+local function loadAllConfigs()
+    local ok, data = pcall(function() if readfile then return readfile(CONFIG_FILE) end; return nil end)
+    if ok and data then
+        local ok2, dec = pcall(function() return HttpService:JSONDecode(data) end)
+        if ok2 and dec and type(dec) == "table" then allConfigs = dec end
+    end
+end
+
+local function persistConfigs()
+    local ok, enc = pcall(function() return HttpService:JSONEncode(allConfigs) end)
+    if ok then pcall(function() if writefile then writefile(CONFIG_FILE, enc) end end) end
+end
+
+local function loadAutoloadSetting()
+    local ok, data = pcall(function() if readfile then return readfile(AUTOLOAD_FILE) end; return nil end)
+    if ok and data then
+        local ok2, dec = pcall(function() return HttpService:JSONDecode(data) end)
+        if ok2 and dec and type(dec) == "table" then currentAutoload = dec.name end
+    end
+end
+
+local function persistAutoloadSetting()
+    local enc
+    if currentAutoload then enc = HttpService:JSONEncode({name = currentAutoload})
+    else enc = HttpService:JSONEncode({}) end
+    pcall(function() if writefile then writefile(AUTOLOAD_FILE, enc) end end)
+end
+
+local function setAutoload(name)
+    currentAutoload = name
+    persistAutoloadSetting()
+    Notify("Config", "Auto-Load: "..name, "success")
+end
+
+local function clearAutoload()
+    currentAutoload = nil
+    persistAutoloadSetting()
+    Notify("Config", "Auto-Load cleared", "info")
+end
+
+local function collectSettings()
+    local bgc = aimDot.BackgroundColor3
+    return {
+        tpRadius    = tpRadiusValue,
+        ringEnabled = tpRingEnabled,
+        aimDot      = aimDot.Visible,
+        dotSize     = _dotSize,
+        dotColor    = {R = math.floor(bgc.R*255), G = math.floor(bgc.G*255), B = math.floor(bgc.B*255)},
+    }
+end
+
+local function applySettings(s)
+    if not s then return end
+    if s.tpRadius then
+        setRadius(s.tpRadius)
+        if _G._kurayamiRadiusApi then
+            if s.tpRadius > 1000 then _G._kurayamiRadiusApi.SetVisual(1000, s.tpRadius)
+            else _G._kurayamiRadiusApi.SetVisual(s.tpRadius) end
+        end
+    end
+    if s.ringEnabled ~= nil then
+        setRingEnabled(s.ringEnabled)
+        if _G._kurayamiRingToggle then _G._kurayamiRingToggle(s.ringEnabled) end
+    end
+    if s.aimDot ~= nil then
+        aimDot.Visible = s.aimDot
+        if _G._kurayamiAimDotToggle then _G._kurayamiAimDotToggle(s.aimDot) end
+    end
+    if s.dotSize then
+        _dotSize = s.dotSize
+        setDotSize(s.dotSize)
+        if _G._kurayamiDotSizeApi then _G._kurayamiDotSizeApi.SetVisual(s.dotSize) end
+    end
+    if s.dotColor then
+        setDotColor(Color3.fromRGB(s.dotColor.R, s.dotColor.G, s.dotColor.B))
+    end
+end
+
+local function saveConfigNamed(name)
+    if not name or name == "" then Notify("Error", "Set config name", "error"); return false end
+    allConfigs[name] = { settings = collectSettings(), timestamp = os.time() }
+    persistConfigs()
+    Notify("Config", "Saved: "..name, "success")
+    return true
+end
+
+local function loadConfigNamed(name)
+    local cfg = allConfigs[name]
+    if not cfg then Notify("Error", "Config not found", "error"); return end
+    if cfg.settings then applySettings(cfg.settings) end
+    Notify("Config", "Loaded: "..name, "success")
+end
+
+local function deleteConfigNamed(name)
+    if not allConfigs[name] then return end
+    allConfigs[name] = nil
+    persistConfigs()
+    if currentAutoload == name then clearAutoload() end
+    Notify("Config", "Deleted: "..name, "warning")
+end
+
+local function getConfigList()
+    local list = {}
+    for k, _ in pairs(allConfigs) do table.insert(list, k) end
+    table.sort(list)
+    return list
+end
+
+function TP.saveWp(name, pos)
+    if not name or name == "" then Notify("Error", "Set name", "error"); return end
+    if not pos then local h = getHRP(plr.Character); if not h then return end; pos = h.Position end
+    savedWaypoints[name] = {x = pos.X, y = pos.Y, z = pos.Z}
+    refreshWpVisual(name, pos)
+    persistWaypoints()
+    Notify("Waypoint", "Saved: "..name, "success")
+end
+function TP.loadWp(name)
+    local w = savedWaypoints[name]; if not w then Notify("Error", "Not found", "error"); return end
+    local h = getHRP(plr.Character); if h then h.CFrame = CFrame.new(w.x,w.y,w.z); Notify("Waypoint", "Loaded", "success") end
+end
+function TP.deleteWp(name)
+    savedWaypoints[name] = nil
+    if wpFolder then local p = wpFolder:FindFirstChild(name); if p then p:Destroy() end end
+    persistWaypoints()
+    Notify("Waypoint", "Deleted", "warning")
+end
+function TP.renameWp(old, newn)
+    if not savedWaypoints[old] then return end
+    if savedWaypoints[newn] then Notify("Error", "Name exists", "error"); return end
+    savedWaypoints[newn] = savedWaypoints[old]; savedWaypoints[old] = nil
+    if wpFolder then local p = wpFolder:FindFirstChild(old); if p then p:Destroy() end end
+    local w = savedWaypoints[newn]; refreshWpVisual(newn, Vector3.new(w.x,w.y,w.z))
+    persistWaypoints()
+    Notify("Waypoint", "Renamed", "success")
+end
+function TP.updateWp(name, pos)
+    if not savedWaypoints[name] then return end
+    savedWaypoints[name] = {x = pos.X, y = pos.Y, z = pos.Z}
+    refreshWpVisual(name, pos)
+    persistWaypoints()
+    Notify("Waypoint", "Updated", "success")
+end
+function TP.toggleLoop(name)
+    if loopActive then
+        loopActive = false
+        if loopThread then pcall(function() task.cancel(loopThread) end); loopThread = nil end
+        Notify("Loop TP", "Stopped", "info")
+    else
+        loopActive = true
+        loopThread = task.spawn(function()
+            while loopActive do
+                local t = Players:FindFirstChild(name)
+                if t and t.Character then
+                    local m, th = getHRP(plr.Character), getHRP(t.Character)
+                    if m and th then m.CFrame = th.CFrame + Vector3.new(0,3,0) end
+                end
+                task.wait(0.3)
+            end
+        end)
+        Notify("Loop TP", "Following", "success")
+    end
+end
+function TP.rejoin() TeleportService:Teleport(game.PlaceId, plr) end
+function TP.serverHop()
+    local url = "https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100"
+    local ok, r = pcall(function() return HttpService:JSONDecode(game:HttpGet(url)) end)
+    if ok and r and r.data then
+        for _, s in ipairs(r.data) do
+            if s.id ~= game.JobId and s.playing < s.maxPlayers then
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, s.id, plr); return
+            end
+        end
+        Notify("Hop", "No servers", "warning")
+    else
+        Notify("Hop", "Failed", "error")
+    end
+end
+
+--============================================================
+--  UI COMPONENTS
+--============================================================
+local function buildSection(parent, title, order)
+    local sec = new("Frame", {Size = UDim2.new(1,0,0,22), BackgroundTransparency = 1, LayoutOrder = order or 0, ZIndex = ZI}, parent)
+    new("TextLabel", {Size = UDim2.new(1,0,1,0), BackgroundTransparency = 1, Text = title, TextColor3 = C.ColorBorderBright, Font = Enum.Font.SourceSansBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = ZI}, sec)
+    return sec
+end
+local function buildCard(parent, order)
+    local card = new("Frame", {
+        Size = UDim2.new(1,0,0,0), BackgroundColor3 = C.ColorBgItem,
+        BackgroundTransparency = 0.55, BorderSizePixel = 0, LayoutOrder = order or 0,
+        ZIndex = ZI, AutomaticSize = Enum.AutomaticSize.Y,
+    }, parent)
+    corner(card, 8); stroke(card, C.ColorBorder, 1, 0.4)
+    new("UIPadding", {PaddingTop = UDim.new(0,8), PaddingBottom = UDim.new(0,8), PaddingLeft = UDim.new(0,8), PaddingRight = UDim.new(0,8)}, card)
+    new("UIListLayout", {Padding = UDim.new(0,6), SortOrder = Enum.SortOrder.LayoutOrder}, card)
+    return card
+end
+local function buildRow(parent, order, height)
+    local row = new("Frame", {Size = UDim2.new(1,0,0,height or 32), BackgroundTransparency = 1, LayoutOrder = order or 0, ZIndex = ZI}, parent)
+    new("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0,6), SortOrder = Enum.SortOrder.LayoutOrder}, row)
+    return row
+end
+local function buildButton(parent, text, cb, lo, size)
+    local b = new("TextButton", {
+        Size = size or UDim2.new(1,0,0,32), BackgroundColor3 = C.ColorBgItemHover,
+        BackgroundTransparency = C.BtnTransparency, Text = text, TextColor3 = C.ColorText,
+        Font = Enum.Font.SourceSansBold, TextSize = 12, BorderSizePixel = 0, AutoButtonColor = false,
+        LayoutOrder = lo or 0, ZIndex = ZI, TextWrapped = true,
+    }, parent)
+    corner(b, 6); stroke(b, C.ColorBorder, 1, 0.4)
+    b.MouseEnter:Connect(function() tween(b, 0.1, {BackgroundTransparency = C.BtnTransparency - 0.15}) end)
+    b.MouseLeave:Connect(function() tween(b, 0.1, {BackgroundTransparency = C.BtnTransparency}) end)
+    b.MouseButton1Click:Connect(function() if cb then cb() end end)
+    return b
+end
+local function buildTextbox(parent, placeholder, initial, cb, lo)
+    local box = new("TextBox", {
+        Size = UDim2.new(1,0,0,32), BackgroundColor3 = C.ColorBgItemHover,
+        BackgroundTransparency = C.BtnTransparency, PlaceholderText = placeholder or "",
+        PlaceholderColor3 = C.ColorTextDim, Text = initial or "", TextColor3 = C.ColorText,
+        Font = Enum.Font.SourceSans, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left,
+        BorderSizePixel = 0, ClearTextOnFocus = false, LayoutOrder = lo or 0, ZIndex = ZI,
+    }, parent)
+    corner(box, 6); stroke(box, C.ColorBorder, 1, 0.4)
+    new("UIPadding", {PaddingLeft = UDim.new(0,10)}, box)
+    box.Focused:Connect(function() tween(box, 0.1, {BackgroundTransparency = C.BtnTransparency - 0.15}) end)
+    box.FocusLost:Connect(function() tween(box, 0.1, {BackgroundTransparency = C.BtnTransparency}); if cb then cb(box.Text) end end)
+    return box
+end
+local function buildToggle(parent, text, initial, cb, lo)
+    local row = new("Frame", {
+        Size = UDim2.new(1,0,0,32), BackgroundColor3 = C.ColorBgItemHover,
+        BackgroundTransparency = C.BtnTransparency, BorderSizePixel = 0, LayoutOrder = lo or 0, ZIndex = ZI,
+    }, parent)
+    corner(row, 6); stroke(row, C.ColorBorder, 1, 0.4)
+    new("TextLabel", {Size = UDim2.new(1,-60,1,0), Position = UDim2.new(0,10,0,0), BackgroundTransparency = 1, Text = text, TextColor3 = C.ColorText, Font = Enum.Font.SourceSans, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = ZI+1}, row)
+    local sw = new("Frame", {Size = UDim2.new(0,36,0,18), Position = UDim2.new(1,-46,0.5,-9), BackgroundColor3 = C.ColorToggleOff, BorderSizePixel = 0, ZIndex = ZI+1}, row)
+    corner(sw, 9); stroke(sw, C.ColorBorderBright, 1, 0.5)
+    local knob = new("Frame", {Size = UDim2.new(0,14,0,14), Position = UDim2.new(0,2,0.5,-7), BackgroundColor3 = Color3.fromRGB(220,220,220), BorderSizePixel = 0, ZIndex = ZI+2}, sw)
+    circle(knob)
+    local st = initial or false
+    if st then
+        sw.BackgroundColor3 = C.ColorToggleOn
+        knob.Position = UDim2.new(1,-16,0.5,-7); knob.BackgroundColor3 = C.ColorBg
+    end
+    local cl = new("TextButton", {Size = UDim2.new(1,0,1,0), BackgroundTransparency = 1, Text = "", ZIndex = ZI+3}, row)
+    cl.MouseButton1Click:Connect(function()
+        st = not st
+        if st then
+            tween(sw, 0.1, {BackgroundColor3 = C.ColorToggleOn})
+            tween(knob, 0.1, {Position = UDim2.new(1,-16,0.5,-7), BackgroundColor3 = C.ColorBg})
+        else
+            tween(sw, 0.1, {BackgroundColor3 = C.ColorToggleOff})
+            tween(knob, 0.1, {Position = UDim2.new(0,2,0.5,-7), BackgroundColor3 = Color3.fromRGB(220,220,220)})
+        end
+        if cb then cb(st) end
+    end)
+    local api = {}
+    api.SetState = function(v)
+        st = v
+        if st then
+            sw.BackgroundColor3 = C.ColorToggleOn
+            knob.Position = UDim2.new(1,-16,0.5,-7); knob.BackgroundColor3 = C.ColorBg
+        else
+            sw.BackgroundColor3 = C.ColorToggleOff
+            knob.Position = UDim2.new(0,2,0.5,-7); knob.BackgroundColor3 = Color3.fromRGB(220,220,220)
+        end
+    end
+    return row, api
+end
+local function buildSlider(parent, text, initial, minV, maxV, cb, lo)
+    local row = new("Frame", {
+        Size = UDim2.new(1,0,0,48), BackgroundColor3 = C.ColorBgItemHover,
+        BackgroundTransparency = C.BtnTransparency, BorderSizePixel = 0, LayoutOrder = lo or 0, ZIndex = ZI,
+    }, parent)
+    corner(row, 6); stroke(row, C.ColorBorder, 1, 0.4)
+    local lbl = new("TextLabel", {Size = UDim2.new(1,-20,0,16), Position = UDim2.new(0,10,0,4), BackgroundTransparency = 1, Text = text..": "..initial, TextColor3 = C.ColorText, Font = Enum.Font.SourceSans, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = ZI+1}, row)
+    local track = new("Frame", {Size = UDim2.new(1,-20,0,6), Position = UDim2.new(0,10,0,34), BackgroundColor3 = Color3.fromRGB(30,30,30), BorderSizePixel = 0, ZIndex = ZI+1}, row)
+    corner(track, 3)
+    local ratio = (initial - minV) / (maxV - minV)
+    local fill = new("Frame", {Size = UDim2.new(ratio,0,1,0), BackgroundColor3 = C.ColorBorderBright, BorderSizePixel = 0, ZIndex = ZI+2}, track)
+    corner(fill, 3)
+    local dragging = false
+    local currentValue = initial
+    local function setVal(px)
+        local rel = clamp((px - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+        local v = math.floor(minV + (maxV - minV) * rel)
+        currentValue = v
+        fill.Size = UDim2.new(rel,0,1,0)
+        lbl.Text = text..": "..v
+        if cb then cb(v) end
+    end
+    track.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; setVal(i.Position.X)
+        end
+    end)
+    UIS.InputChanged:Connect(function(i)
+        if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+            setVal(i.Position.X)
+        end
+    end)
+    UIS.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end
+    end)
+    local api = {}
+    api.SetVisual = function(v, labelOverride)
+        local clamped = clamp(v, minV, maxV)
+        local rel = (clamped - minV) / (maxV - minV)
+        fill.Size = UDim2.new(rel, 0, 1, 0)
+        lbl.Text = text..": "..(labelOverride or clamped)
+    end
+    api.GetValue = function() return currentValue end
+    return row, api
+end
+local function buildInfoRow(parent, label, value, lo)
+    local row = new("Frame", {Size = UDim2.new(1,0,0,30), BackgroundColor3 = C.ColorBgItemHover, BackgroundTransparency = C.BtnTransparency, BorderSizePixel = 0, LayoutOrder = lo or 0, ZIndex = ZI}, parent)
+    corner(row, 6); stroke(row, C.ColorBorder, 1, 0.4)
+    new("TextLabel", {Size = UDim2.new(0,80,1,0), Position = UDim2.new(0,10,0,0), BackgroundTransparency = 1, Text = label, TextColor3 = C.ColorTextDim, Font = Enum.Font.SourceSans, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = ZI+1}, row)
+    new("TextBox", {Size = UDim2.new(1,-100,1,0), Position = UDim2.new(0,90,0,0), BackgroundTransparency = 1, Text = tostring(value), TextColor3 = C.ColorText, Font = Enum.Font.SourceSans, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Right, TextEditable = false, ClearTextOnFocus = false, TextTruncate = Enum.TextTruncate.None, ZIndex = ZI+1}, row)
+    local copy = new("TextButton", {Size = UDim2.new(0,20,1,0), Position = UDim2.new(1,-20,0,0), BackgroundTransparency = 1, Text = "C", TextColor3 = C.ColorTextDim, TextSize = 11, Font = Enum.Font.SourceSansBold, AutoButtonColor = false, ZIndex = ZI+2}, row)
+    copy.MouseButton1Click:Connect(function()
+        if setclipboard then pcall(function() setclipboard(tostring(value)) end); Notify("Copy", "Copied", "info", 1.2) end
+    end)
+    return row
+end
+
+local function buildDropdown(parent, placeholder, lo)
+    local row = new("Frame", {
+        Size = UDim2.new(1,0,0,36), BackgroundColor3 = C.ColorBgItemHover,
+        BackgroundTransparency = C.BtnTransparency, BorderSizePixel = 0, LayoutOrder = lo or 0, ZIndex = ZI,
+    }, parent)
+    corner(row, 6); stroke(row, C.ColorBorder, 1, 0.4)
+    local valLbl = new("TextLabel", {
+        Size = UDim2.new(1,-90,1,0), Position = UDim2.new(0,12,0,0),
+        BackgroundTransparency = 1, Text = placeholder or "Select...",
+        TextColor3 = C.ColorTextDim, Font = Enum.Font.SourceSans, TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = ZI+1,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+    }, row)
+    local cancelBtn = new("TextButton", {
+        Size = UDim2.new(0,22,0,22), Position = UDim2.new(1,-52,0.5,-11),
+        BackgroundColor3 = Color3.fromRGB(60,60,60),
+        BackgroundTransparency = 0.3, Text = "×",
+        TextColor3 = C.ColorText, Font = Enum.Font.SourceSansBold,
+        TextSize = 14, BorderSizePixel = 0, AutoButtonColor = false, ZIndex = ZI+2,
+    }, row)
+    circle(cancelBtn)
+    local arrowLbl = new("TextLabel", {
+        Size = UDim2.new(0,22,0,22), Position = UDim2.new(1,-28,0.5,-11),
+        BackgroundTransparency = 1, Text = "v",
+        TextColor3 = C.ColorBorderBright, TextSize = 14,
+        Font = Enum.Font.SourceSansBold, ZIndex = ZI+1, Rotation = 90,
+    }, row)
+    local cl = new("TextButton", {
+        Size = UDim2.new(1,-56,1,0), Position = UDim2.new(0,0,0,0),
+        BackgroundTransparency = 1, Text = "", ZIndex = ZI+1,
+    }, row)
+    local MAX_LIST_H = 240
+    local listF = new("ScrollingFrame", {
+        Size = UDim2.new(1,0,0,0), Position = UDim2.new(0,0,1,4),
+        BackgroundColor3 = C.ColorBg, BackgroundTransparency = 0.05, BorderSizePixel = 0,
+        Visible = false, ZIndex = ZI+10,
+        ClipsDescendants = true,
+        CanvasSize = UDim2.new(0,0,0,0),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        ScrollBarThickness = 3,
+        ScrollBarImageColor3 = C.ColorBorderLight,
+        ScrollingDirection = Enum.ScrollingDirection.Y,
+    }, row)
+    corner(listF, 6); stroke(listF, C.ColorBorderLight, 1, 0)
+    new("UIListLayout", {Padding = UDim.new(0,2), SortOrder = Enum.SortOrder.LayoutOrder}, listF)
+    new("UIPadding", {PaddingTop = UDim.new(0,4), PaddingBottom = UDim.new(0,4), PaddingLeft = UDim.new(0,4), PaddingRight = UDim.new(0,4)}, listF)
+    local sel = nil; local cbk = nil; local open = false
+    local targetHeight = 0
+    local api = {}
+    local openList, closeList
+    api.SetOptions = function(opts)
+        for _, c in ipairs(listF:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
+        for i, opt in ipairs(opts) do
+            local ob = new("TextButton", {Size = UDim2.new(1,0,0,28), BackgroundTransparency = 1, Text = opt, TextColor3 = C.ColorText, Font = Enum.Font.SourceSans, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, AutoButtonColor = false, LayoutOrder = i, ZIndex = ZI+11}, listF)
+            new("UIPadding", {PaddingLeft = UDim.new(0,8)}, ob)
+            ob.MouseEnter:Connect(function() tween(ob, 0.08, {BackgroundTransparency = 0.7, BackgroundColor3 = C.ColorBgHover}) end)
+            ob.MouseLeave:Connect(function() tween(ob, 0.08, {BackgroundTransparency = 1}) end)
+            ob.MouseButton1Click:Connect(function()
+                sel = opt; valLbl.Text = opt; valLbl.TextColor3 = C.ColorText
+                if closeList then closeList() end
+                if cbk then cbk(opt) end
+            end)
+        end
+        local listH = math.min(#opts * 30 + 8, MAX_LIST_H)
+        targetHeight = listH
+        if open then tween(listF, 0.15, {Size = UDim2.new(1,0,0,targetHeight)}) end
+    end
+    api.OnSelect = function(cb) cbk = cb end
+    api.Get = function() return sel end
+    api.SetPlaceholder = function(t)
+        valLbl.Text = t; valLbl.TextColor3 = C.ColorTextDim; sel = nil
+        if cbk then cbk(nil) end
+    end
+    openList = function()
+        if open then return end
+        open = true; listF.Visible = true; listF.Size = UDim2.new(1,0,0,0)
+        tween(arrowLbl, 0.15, {Rotation = 0}, Enum.EasingStyle.Quad)
+        tween(listF, 0.18, {Size = UDim2.new(1,0,0,targetHeight)}, Enum.EasingStyle.Quad)
+    end
+    closeList = function()
+        if not open then return end
+        open = false
+        tween(arrowLbl, 0.15, {Rotation = 90}, Enum.EasingStyle.Quad)
+        tween(listF, 0.15, {Size = UDim2.new(1,0,0,0)}, Enum.EasingStyle.Quad)
+        task.delay(0.15, function() if not open then listF.Visible = false end end)
+    end
+    api.Close = closeList
+    cl.MouseButton1Click:Connect(function()
+        if open then closeList() else openList() end
+    end)
+    cancelBtn.MouseButton1Click:Connect(function()
+        api.SetPlaceholder(placeholder or "Select...")
+        closeList()
+    end)
+    return row, api
+end
+
+--============================================================
+--  MINI TP MENU  (DisplayOrder = 1998)
+--============================================================
+local miniGui = new("ScreenGui", {Name = "KurayamiMiniTP", IgnoreGuiInset = true, ResetOnSpawn = false, DisplayOrder = 1998}, playerGui)
+
+local MINI_W, MINI_H = 240, 340
+local miniHolder = new("Frame", {
+    AnchorPoint = Vector2.new(1, 0),
+    Position = UDim2.new(1, -20, 0, 80),
+    Size = UDim2.new(0, MINI_W, 0, MINI_H),
+    BackgroundColor3 = C.ColorBg,
+    BackgroundTransparency = 0.1,
+    BorderSizePixel = 0, ZIndex = 50,
+    Visible = false,
+    ClipsDescendants = true,
+}, miniGui)
+corner(miniHolder, 10)
+stroke(miniHolder, C.ColorBorderLight, 1.5, 0)
+
+local miniHeader = new("Frame", {
+    Size = UDim2.new(1, 0, 0, 32),
+    BackgroundColor3 = C.ColorBgHeader,
+    BackgroundTransparency = 0.1,
+    BorderSizePixel = 0, ZIndex = 53, Active = true,
+}, miniHolder)
+corner(miniHeader, 10)
+
+new("TextLabel", {
+    Size = UDim2.new(1, -70, 1, 0), Position = UDim2.new(0, 12, 0, 0),
+    BackgroundTransparency = 1, Text = "TP Tool",
+    TextColor3 = C.ColorText, Font = Enum.Font.SourceSansBold,
+    TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 55,
+}, miniHeader)
+
+local miniStatus = new("TextLabel", {
+    Size = UDim2.new(0, 44, 0, 14), Position = UDim2.new(1, -70, 0.5, -7),
+    BackgroundTransparency = 1, Text = "OFF",
+    TextColor3 = C.ColorTextDim, Font = Enum.Font.SourceSansBold,
+    TextSize = 9, TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 55,
+}, miniHeader)
+
+local miniMinBtn = new("TextButton", {
+    Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(1, -54, 0.5, -11),
+    BackgroundColor3 = C.ColorBg, BorderSizePixel = 0,
+    Text = "-", TextColor3 = C.ColorBorderBright,
+    Font = Enum.Font.SourceSansBold, TextSize = 16,
+    AutoButtonColor = false, ZIndex = 56,
+}, miniHeader)
+circle(miniMinBtn); stroke(miniMinBtn, C.ColorBorderLight, 1, 0.3)
+
+local miniCloseBtn = new("TextButton", {
+    Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(1, -28, 0.5, -11),
+    BackgroundColor3 = C.ColorBg, BorderSizePixel = 0,
+    Text = "×", TextColor3 = C.ColorBorderBright,
+    Font = Enum.Font.SourceSansBold, TextSize = 14,
+    AutoButtonColor = false, ZIndex = 56,
+}, miniHeader)
+circle(miniCloseBtn); stroke(miniCloseBtn, C.ColorBorderLight, 1, 0.3)
+
+local miniBody = new("ScrollingFrame", {
+    Size = UDim2.new(1, -12, 1, -40), Position = UDim2.new(0, 6, 0, 36),
+    BackgroundTransparency = 1, BorderSizePixel = 0,
+    ScrollBarThickness = 2, ScrollBarImageColor3 = C.ColorBorderLight,
+    CanvasSize = UDim2.new(0, 0, 0, 0),
+    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+    ScrollingDirection = Enum.ScrollingDirection.Y,
+    ZIndex = 54,
+}, miniHolder)
+new("UIListLayout", {Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder}, miniBody)
+
+local miniEnabled = false
+local miniLocked = false
+local miniSelPlayer = nil
+local miniCurCoords = ""
+
+local miniRow1 = new("Frame", {Size = UDim2.new(1, 0, 0, 28), BackgroundTransparency = 1, LayoutOrder = 1, ZIndex = ZI}, miniBody)
+new("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 5)}, miniRow1)
+
+local function miniSmallToggle(parent, text, initial, cb, lo)
+    local row = new("Frame", {
+        Size = UDim2.new(0.5, -3, 1, 0), BackgroundColor3 = C.ColorBgItemHover,
+        BackgroundTransparency = C.BtnTransparency, BorderSizePixel = 0, LayoutOrder = lo or 0, ZIndex = ZI,
+    }, parent)
+    corner(row, 6); stroke(row, C.ColorBorder, 1, 0.4)
+    new("TextLabel", {Size = UDim2.new(1, -40, 1, 0), Position = UDim2.new(0, 8, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = C.ColorText, Font = Enum.Font.SourceSans, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = ZI+1}, row)
+    local sw = new("Frame", {Size = UDim2.new(0, 28, 0, 14), Position = UDim2.new(1, -34, 0.5, -7), BackgroundColor3 = C.ColorToggleOff, BorderSizePixel = 0, ZIndex = ZI+1}, row)
+    corner(sw, 7); stroke(sw, C.ColorBorderBright, 1, 0.5)
+    local knob = new("Frame", {Size = UDim2.new(0, 10, 0, 10), Position = UDim2.new(0, 2, 0.5, -5), BackgroundColor3 = Color3.fromRGB(220,220,220), BorderSizePixel = 0, ZIndex = ZI+2}, sw)
+    circle(knob)
+    local st = initial or false
+    if st then
+        sw.BackgroundColor3 = C.ColorToggleOn
+        knob.Position = UDim2.new(1, -12, 0.5, -5); knob.BackgroundColor3 = C.ColorBg
+    end
+    local cl = new("TextButton", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "", ZIndex = ZI+3}, row)
+    cl.MouseButton1Click:Connect(function()
+        st = not st
+        if st then
+            tween(sw, 0.1, {BackgroundColor3 = C.ColorToggleOn})
+            tween(knob, 0.1, {Position = UDim2.new(1, -12, 0.5, -5), BackgroundColor3 = C.ColorBg})
+        else
+            tween(sw, 0.1, {BackgroundColor3 = C.ColorToggleOff})
+            tween(knob, 0.1, {Position = UDim2.new(0, 2, 0.5, -5), BackgroundColor3 = Color3.fromRGB(220,220,220)})
+        end
+        if cb then cb(st) end
+    end)
+    return row
+end
+
+miniSmallToggle(miniRow1, "Active", false, function(s)
+    miniEnabled = s
+    miniStatus.Text = s and "ON" or "OFF"
+    miniStatus.TextColor3 = s and C.ColorGreen or C.ColorTextDim
+end, 1)
+
+miniSmallToggle(miniRow1, "Lock", false, function(s) miniLocked = s end, 2)
+
+new("TextLabel", {Size = UDim2.new(1, 0, 0, 16), BackgroundTransparency = 1, Text = "PLAYER", TextColor3 = C.ColorBorderBright, Font = Enum.Font.SourceSansBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 2, ZIndex = ZI}, miniBody)
+
+local _, miniPdd = buildDropdown(miniBody, "Select player...", 3)
+miniPdd.OnSelect(function(n) miniSelPlayer = n end)
+
+local function miniPopulate()
+    local list = {}
+    for _, p in ipairs(Players:GetPlayers()) do if p ~= plr then table.insert(list, p.Name) end end
+    table.sort(list); miniPdd.SetOptions(list)
+end
+miniPopulate()
+
+local miniRow2 = new("Frame", {Size = UDim2.new(1, 0, 0, 26), BackgroundTransparency = 1, LayoutOrder = 4, ZIndex = ZI}, miniBody)
+new("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4)}, miniRow2)
+
+local function miniBtn(parent, text, cb, lo)
+    local b = new("TextButton", {
+        Size = UDim2.new(0.5, -2, 1, 0), BackgroundColor3 = C.ColorBgItemHover,
+        BackgroundTransparency = C.BtnTransparency, Text = text, TextColor3 = C.ColorText,
+        Font = Enum.Font.SourceSansBold, TextSize = 10, BorderSizePixel = 0, AutoButtonColor = false,
+        LayoutOrder = lo or 0, ZIndex = ZI,
+    }, parent)
+    corner(b, 5); stroke(b, C.ColorBorder, 1, 0.4)
+    b.MouseEnter:Connect(function() tween(b, 0.1, {BackgroundTransparency = 0.15}) end)
+    b.MouseLeave:Connect(function() tween(b, 0.1, {BackgroundTransparency = C.BtnTransparency}) end)
+    b.MouseButton1Click:Connect(function() if cb then cb() end end)
+    return b
+end
+
+miniBtn(miniRow2, "TP", function()
+    if miniSelPlayer then ShowConfirm("Teleport", "Teleport to ["..miniSelPlayer.."]?", function() TP.toPlayer(miniSelPlayer) end) end
+end, 1)
+miniBtn(miniRow2, "Bring", function()
+    if miniSelPlayer then ShowConfirm("Bring", "Bring ["..miniSelPlayer.."]?", function() TP.bringPlayer(miniSelPlayer) end) end
+end, 2)
+
+new("TextLabel", {Size = UDim2.new(1, 0, 0, 16), BackgroundTransparency = 1, Text = "TP ALL", TextColor3 = C.ColorBorderBright, Font = Enum.Font.SourceSansBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 5, ZIndex = ZI}, miniBody)
+
+local miniRow3 = new("Frame", {Size = UDim2.new(1, 0, 0, 26), BackgroundTransparency = 1, LayoutOrder = 6, ZIndex = ZI}, miniBody)
+new("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4)}, miniRow3)
+miniBtn(miniRow3, "All to Me", function()
+    ShowConfirm("TP All", "Bring all players within radius "..tpRadiusValue.."?", function() TP.allToMe() end)
+end, 1)
+miniBtn(miniRow3, "Ring", function()
+    setRingEnabled(not tpRingEnabled)
+end, 2)
+
+local radiusSlider, radiusApi = buildSlider(miniBody, "Radius", tpRadiusValue, 0, 1000, function(v)
+    setRadius(v)
+end, 7)
+radiusSlider.Size = UDim2.new(1, 0, 0, 42)
+
+local miniRow4 = new("Frame", {Size = UDim2.new(1, 0, 0, 28), BackgroundTransparency = 1, LayoutOrder = 8, ZIndex = ZI}, miniBody)
+new("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4)}, miniRow4)
+local miniRadiusBox = buildTextbox(miniRow4, "Custom...", "", function(t) _G._kurayamiMiniRadiusBuf = t end, 1)
+miniRadiusBox.Size = UDim2.new(0.6, -2, 1, 0)
+miniRadiusBox.TextSize = 10
+local miniApplyBtn = miniBtn(miniRow4, "Apply", function()
+    local v = tonumber(_G._kurayamiMiniRadiusBuf)
+    if not v or v <= 0 then Notify("Error", "Invalid radius", "error"); return end
+    v = math.floor(v)
+    setRadius(v)
+    if v > 1000 then radiusApi.SetVisual(1000, v)
+    else radiusApi.SetVisual(v) end
+    Notify("Radius", "Set to "..v, "success", 1.2)
+end, 2)
+miniApplyBtn.Size = UDim2.new(0.4, -2, 1, 0)
+
+new("TextLabel", {Size = UDim2.new(1, 0, 0, 16), BackgroundTransparency = 1, Text = "COORDS", TextColor3 = C.ColorBorderBright, Font = Enum.Font.SourceSansBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 9, ZIndex = ZI}, miniBody)
+
+local miniCoordsBox = buildTextbox(miniBody, "X,Y,Z", "", function(t) miniCurCoords = t end, 10)
+miniCoordsBox.Size = UDim2.new(1, 0, 0, 28)
+miniCoordsBox.TextSize = 10
+
+local miniRow5 = new("Frame", {Size = UDim2.new(1, 0, 0, 26), BackgroundTransparency = 1, LayoutOrder = 11, ZIndex = ZI}, miniBody)
+new("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4)}, miniRow5)
+miniBtn(miniRow5, "Go", function()
+    local pts = {}
+    for n in string.gmatch(miniCurCoords, "([^,]+)") do table.insert(pts, tonumber(n)) end
+    if #pts == 3 then ShowConfirm("Teleport", "Teleport to coords?", function() TP.toCoords(pts[1], pts[2], pts[3]) end)
+    else Notify("Error", "Invalid coords", "error") end
+end, 1)
+miniBtn(miniRow5, "Copy", function()
+    local h = getHRP(plr.Character)
+    if h then
+        local p = h.Position; local s = string.format("%d,%d,%d", p.X, p.Y, p.Z)
+        miniCurCoords = s; miniCoordsBox.Text = s
+        if setclipboard then pcall(function() setclipboard(s) end) end
+        Notify("Copy", s, "info", 1.2)
+    end
+end, 2)
+
+new("TextLabel", {Size = UDim2.new(1, 0, 0, 16), BackgroundTransparency = 1, Text = "MOUSE", TextColor3 = C.ColorBorderBright, Font = Enum.Font.SourceSansBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 12, ZIndex = ZI}, miniBody)
+
+local miniRow6 = new("Frame", {Size = UDim2.new(1, 0, 0, 26), BackgroundTransparency = 1, LayoutOrder = 13, ZIndex = ZI}, miniBody)
+new("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4)}, miniRow6)
+miniBtn(miniRow6, "TP Mouse", function()
+    ShowConfirm("Teleport", "Teleport to mouse?", function() TP.toMouse() end)
+end, 1)
+miniBtn(miniRow6, "Crosshair", function()
+    _G.KurayamiTPCrosshair()
+end, 2)
+
+Players.PlayerAdded:Connect(function() task.wait(0.3); miniPopulate() end)
+Players.PlayerRemoving:Connect(function() task.wait(0.3); miniPopulate() end)
+
+local miniCollapsed = false
+
+miniMinBtn.MouseButton1Click:Connect(function()
+    miniCollapsed = not miniCollapsed
+    if miniCollapsed then
+        miniBody.Visible = false
+        tween(miniHolder, 0.2, {Size = UDim2.new(0, MINI_W, 0, 32)}, Enum.EasingStyle.Quad)
+        tween(miniMinBtn, 0.15, {Rotation = 45})
+    else
+        miniBody.Visible = true
+        tween(miniHolder, 0.2, {Size = UDim2.new(0, MINI_W, 0, MINI_H)}, Enum.EasingStyle.Quad)
+        tween(miniMinBtn, 0.15, {Rotation = 0})
+    end
+end)
+
+miniCloseBtn.MouseButton1Click:Connect(function()
+    pcall(function() setRingEnabled(false) end)
+    miniGui:Destroy()
+end)
+
+miniMinBtn.MouseEnter:Connect(function() tween(miniMinBtn, 0.1, {BackgroundColor3 = C.ColorBgHover}) end)
+miniMinBtn.MouseLeave:Connect(function() tween(miniMinBtn, 0.1, {BackgroundColor3 = C.ColorBg}) end)
+miniCloseBtn.MouseEnter:Connect(function() tween(miniCloseBtn, 0.1, {BackgroundColor3 = C.ColorBgHover}) end)
+miniCloseBtn.MouseLeave:Connect(function() tween(miniCloseBtn, 0.1, {BackgroundColor3 = C.ColorBg}) end)
+
+local miniDragging, miniDragStart, miniStartPos
+miniHeader.InputBegan:Connect(function(i)
+    if miniLocked then return end
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        miniDragging = true; miniDragStart = i.Position; miniStartPos = miniHolder.Position
+    end
+end)
+UIS.InputChanged:Connect(function(i)
+    if miniDragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+        local d = i.Position - miniDragStart
+        local nx = miniStartPos.X.Offset + d.X; local ny = miniStartPos.Y.Offset + d.Y
+        local vp = workspace.CurrentCamera.ViewportSize
+        nx = clamp(nx, -vp.X + 40, vp.X - 40)
+        ny = clamp(ny, 40, vp.Y - 40)
+        miniHolder.Position = UDim2.new(miniStartPos.X.Scale, nx, miniStartPos.Y.Scale, ny)
+    end
+end)
+UIS.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        miniDragging = false
+    end
+end)
+
+--============================================================
+--  ACTIONS
+--============================================================
+local selPlayer = nil
+local selWP = nil
+local selConfig = nil
+local curCoords = ""
+local wpNameBuf = ""
+local configNameBuf = ""
+
+local function actTPToPlayer()
+    if not selPlayer then Notify("Error", "Select a player", "error"); return end
+    local n = selPlayer
+    ShowConfirm("Teleport", "Teleport to ["..n.."]?", function() TP.toPlayer(n) end)
+end
+local function actBring()
+    if not selPlayer then Notify("Error", "Select a player", "error"); return end
+    local n = selPlayer
+    ShowConfirm("Bring", "Bring ["..n.."] to you?", function() TP.bringPlayer(n) end)
+end
+local function actBehind()
+    if not selPlayer then Notify("Error", "Select a player", "error"); return end
+    local n = selPlayer
+    ShowConfirm("Teleport", "Teleport behind ["..n.."]?", function() TP.behindPlayer(n) end)
+end
+local function actAllToMe()
+    ShowConfirm("TP All", "Bring all players within radius "..tpRadiusValue.." to you?", function() TP.allToMe() end)
+end
+local function actLoop(state)
+    if not selPlayer then Notify("Error", "Select a player", "error"); return end
+    local n = selPlayer
+    if state then ShowConfirm("Loop", "Follow ["..n.."]?", function() TP.toggleLoop(n) end)
+    else TP.toggleLoop(n) end
+end
+local function actUnload()
+    ShowConfirm("Unload", "Close script and remove all GUIs?", function()
+        if _G.KurayamiFlyGui and _G.KurayamiFlyGui.IsOpen and _G.KurayamiFlyGui.IsOpen() then
+            pcall(function() _G.KurayamiFlyGui.Close() end)
+        end
+        pcall(function() TP.disableClickTP() end)
+        pcall(function() aimDot.Visible = false end)
+        pcall(function() setRingEnabled(false) end)
+        loopActive = false
+        if loopThread then pcall(function() task.cancel(loopThread) end) end
+        for _, n in ipairs({"KurayamiHub","KurayamiToggle","KurayamiNotify","KurayamiClickTP","KurayamiModal","KurayamiDot","KurayamiMiniTP"}) do
+            local g = playerGui:FindFirstChild(n); if g then g:Destroy() end
+        end
+        local wf = workspace:FindFirstChild("KurayamiWaypoints"); if wf then wf:Destroy() end
+        local rf = workspace:FindFirstChild("KurayamiRadiusIndicator"); if rf then rf:Destroy() end
+        local bp = plr:FindFirstChildOfClass("Backpack")
+        if bp then for _, c in ipairs(bp:GetChildren()) do if c:IsA("Tool") and c.Name == TOOL_NAME then c:Destroy() end end end
+    end)
+end
+local function actRejoin() ShowConfirm("Rejoin", "Rejoin the server?", function() TP.rejoin() end) end
+local function actHop() ShowConfirm("Server Hop", "Hop to another server?", function() TP.serverHop() end) end
+
+--============================================================
+--  PAGE BUILDERS
+--============================================================
+local function clearContent()
+    for _, c in ipairs(content:GetChildren()) do if c:IsA("GuiObject") then c:Destroy() end end
+end
+
+local function buildInfoPage()
+    clearContent()
+
+    buildSection(content, "PLAYER PROFILE", 1)
+    local pc = buildCard(content, 2)
+
+    local profileRow = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 80),
+        BackgroundTransparency = 1, LayoutOrder = 1, ZIndex = ZI,
+    }, pc)
+
+    local avatar = new("ImageLabel", {
+        Size = UDim2.new(0, 72, 0, 72), Position = UDim2.new(0, 4, 0, 4),
+        BackgroundColor3 = Color3.fromRGB(30,30,30), BorderSizePixel = 0,
+        Image = "rbxthumb://type=AvatarHeadShot&id=" .. plr.UserId .. "&w=150&h=150",
+        ZIndex = ZI + 1,
+    }, profileRow)
+    corner(avatar, 8); stroke(avatar, C.ColorBorderLight, 1, 0.3)
+
+    new("TextLabel", {Size = UDim2.new(1, -92, 0, 22), Position = UDim2.new(0, 88, 0, 8),
+        BackgroundTransparency = 1, Text = plr.DisplayName,
+        TextColor3 = C.ColorText, Font = Enum.Font.SourceSansBold, TextSize = 16,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = ZI+1}, profileRow)
+    new("TextLabel", {Size = UDim2.new(1, -92, 0, 16), Position = UDim2.new(0, 88, 0, 32),
+        BackgroundTransparency = 1, Text = "@" .. plr.Name,
+        TextColor3 = C.ColorTextDim, Font = Enum.Font.SourceSans, TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = ZI+1}, profileRow)
+    new("TextLabel", {Size = UDim2.new(1, -92, 0, 14), Position = UDim2.new(0, 88, 0, 50),
+        BackgroundTransparency = 1, Text = "ID: " .. plr.UserId,
+        TextColor3 = C.ColorTextDim, Font = Enum.Font.SourceSans, TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = ZI+1}, profileRow)
+
+    buildSection(content, "DETAILS", 3)
+    local dc = buildCard(content, 4)
+    buildInfoRow(dc, "Account Age", (math.floor(plr.AccountAge) .. " days"), 1)
+    buildInfoRow(dc, "Membership", plr.MembershipType.Name, 2)
+    buildInfoRow(dc, "Friends", tostring(#plr:GetFriendsOnline()) .. " online", 3)
+
+    buildSection(content, "PERFORMANCE", 5)
+    local perfCard = buildCard(content, 6)
+    local fpsRow = buildInfoRow(perfCard, "FPS", "0", 1)
+    local pingRow = buildInfoRow(perfCard, "Ping", "0ms", 2)
+    local uptimeRow = buildInfoRow(perfCard, "Uptime", "0s", 3)
+    local memRow = buildInfoRow(perfCard, "Memory", "0MB", 4)
+
+    if _G._kurayamiStatsConn then _G._kurayamiStatsConn:Disconnect() end
+    local fa, ft = 0, 0
+    _G._kurayamiStatsConn = RunService.RenderStepped:Connect(function(dt)
+        fa = fa + 1; ft = ft + dt
+        if ft >= 0.5 then
+            local v = math.floor(fa/ft); fa = 0; ft = 0
+            local b = fpsRow:FindFirstChildOfClass("TextBox"); if b then b.Text = tostring(v) end
+            local ping = 0
+            pcall(function()
+                ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+            end)
+            local p = pingRow:FindFirstChildOfClass("TextBox"); if p then p.Text = ping .. "ms" end
+            local elapsed = math.floor(tick() - (_G._kurayamiStartTime or tick()))
+            local s = elapsed .. "s"
+            if elapsed >= 60 then s = math.floor(elapsed/60) .. "m " .. (elapsed%60) .. "s" end
+            if elapsed >= 3600 then s = math.floor(elapsed/3600) .. "h " .. math.floor((elapsed%3600)/60) .. "m" end
+            local u = uptimeRow:FindFirstChildOfClass("TextBox"); if u then u.Text = s end
+            local mem = math.floor(Stats:GetTotalMemoryUsageMb())
+            local m = memRow:FindFirstChildOfClass("TextBox"); if m then m.Text = mem .. "MB" end
+        end
+    end)
+
+    buildSection(content, "JOIN DISCORD!", 7)
+    local dc2 = buildCard(content, 8)
+
+    new("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1,
+        Text = "Get updates, feature suggestions, bug reports, and more!",
+        TextColor3 = C.ColorTextDim, Font = Enum.Font.SourceSans, TextSize = 11,
+        TextWrapped = true, AutomaticSize = Enum.AutomaticSize.Y,
+        TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 1, ZIndex = ZI,
+    }, dc2)
+
+    local rDc = buildRow(dc2, 2)
+    buildButton(rDc, "Join Discord!", function()
+        pcall(function()
+            game:GetService("GuiService"):OpenBrowserWindow("https://discord.gg/placeholder")
+        end)
+        Notify("Discord", "Opening in browser...", "info", 1.5)
+    end, 1, UDim2.new(0.5, -3, 1, 0))
+    buildButton(rDc, "Copy Link", function()
+        if setclipboard then
+            pcall(function() setclipboard("https://discord.gg/placeholder") end)
+            Notify("Discord", "Link copied", "success", 1.5)
+        end
+    end, 2, UDim2.new(0.5, -3, 1, 0))
+end
+
+local function buildPlaceholderPage(title, desc, features)
+    clearContent()
+    buildSection(content, title:upper(), 1)
+    local c = buildCard(content, 2)
+
+    new("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1,
+        Text = desc, TextColor3 = C.ColorText,
+        Font = Enum.Font.SourceSansBold, TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 1, ZIndex = ZI,
+    }, c)
+
+    new("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1,
+        Text = ">> STATUS: IN DEVELOPMENT\n\n" .. features,
+        TextColor3 = C.ColorTextDim,
+        Font = Enum.Font.Code, TextSize = 11,
+        TextWrapped = true, AutomaticSize = Enum.AutomaticSize.Y,
+        TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 2, ZIndex = ZI,
+    }, c)
+
+    buildSection(content, "TEST AREA", 3)
+    local tc = buildCard(content, 4)
+
+    new("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 16), BackgroundTransparency = 1,
+        Text = "Interact with elements below to verify functionality",
+        TextColor3 = C.ColorTextDim, Font = Enum.Font.SourceSans, TextSize = 10,
+        TextWrapped = true, AutomaticSize = Enum.AutomaticSize.Y,
+        TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 1, ZIndex = ZI,
+    }, tc)
+
+    buildToggle(tc, "Test Toggle", false, function(s)
+        Notify("Test", "Toggle is now " .. (s and "ON" or "OFF"), "info", 1.5)
+    end, 2)
+
+    buildButton(tc, "Test Button", function()
+        Notify("Test", "Button pressed", "info", 1.5)
+    end, 3)
+
+    local sliderDebounce = nil
+    buildSlider(tc, "Test Slider", 50, 0, 100, function(v)
+        if sliderDebounce then pcall(function() task.cancel(sliderDebounce) end) end
+        sliderDebounce = task.delay(0.25, function()
+            Notify("Test", "Slider set to " .. v, "info", 1.2)
+        end)
+    end, 4)
+
+    buildTextbox(tc, "Type something...", "", function(t)
+        local shown = (t == "" and "(empty)") or t
+        Notify("Test", "Input received: " .. shown, "info", 1.5)
+    end, 5)
+
+    local _, testDD = buildDropdown(tc, "Pick an option...", 6)
+    testDD.SetOptions({"Option A", "Option B", "Option C"})
+    testDD.OnSelect(function(n)
+        if n then
+            Notify("Test", "Selected: " .. n, "info", 1.5)
+        else
+            Notify("Test", "Selection cleared", "info", 1.2)
+        end
+    end)
+end
+
+local function buildPlayerPage()
+    clearContent()
+
+    buildSection(content, "FLY", 1)
+    local c1 = buildCard(content, 2)
+
+    new("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 18), BackgroundTransparency = 1,
+        Text = "Loads a separate Fly GUI script",
+        TextColor3 = C.ColorTextDim, Font = Enum.Font.SourceSans, TextSize = 11,
+        TextWrapped = true, AutomaticSize = Enum.AutomaticSize.Y,
+        TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 1, ZIndex = ZI,
+    }, c1)
+
+    local rOpen = buildRow(c1, 2)
+    buildButton(rOpen, "Open Fly Menu", function()
+        LoadFlyMenu()
+    end, 1, UDim2.new(1, 0, 1, 0))
+
+    buildSection(content, "CHARACTER", 3)
+    local c2 = buildCard(content, 4)
+
+    new("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1,
+        Text = ">> STATUS: IN DEVELOPMENT\n\nSpeed, Jump Power, Infinite Jump, Noclip, Invisibility, Godmode",
+        TextColor3 = C.ColorTextDim,
+        Font = Enum.Font.Code, TextSize = 11,
+        TextWrapped = true, AutomaticSize = Enum.AutomaticSize.Y,
+        TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 1, ZIndex = ZI,
+    }, c2)
+end
+
+local function buildTeleportPage()
+    clearContent()
+
+    buildSection(content, "PLAYER TELEPORT", 1)
+    local c1 = buildCard(content, 2)
+
+    local _, pdd = buildDropdown(c1, "Select player...", 1)
+    pdd.OnSelect(function(n) selPlayer = n end)
+
+    if _G._kurayamiPlayerConns then
+        for _, c in ipairs(_G._kurayamiPlayerConns) do pcall(function() c:Disconnect() end) end
+    end
+    _G._kurayamiPlayerConns = {}
+
+    local function populate()
+        local list = {}
+        for _, p in ipairs(Players:GetPlayers()) do if p ~= plr then table.insert(list, p.Name) end end
+        table.sort(list); pdd.SetOptions(list)
+    end
+    populate()
+    table.insert(_G._kurayamiPlayerConns, Players.PlayerAdded:Connect(populate))
+    table.insert(_G._kurayamiPlayerConns, Players.PlayerRemoving:Connect(function() task.wait(0.3); populate() end))
+
+    local r1 = buildRow(c1, 2)
+    buildButton(r1, "Confirm Teleport", actTPToPlayer, 1, UDim2.new(0.5,-3,1,0))
+    buildButton(r1, "Refresh List", function() populate(); Notify("Players", "Refreshed", "info", 1.2) end, 2, UDim2.new(0.5,-3,1,0))
+
+    local r2 = buildRow(c1, 3)
+    buildButton(r2, "Bring Player", actBring, 1, UDim2.new(0.5,-3,1,0))
+    buildButton(r2, "TP Behind", actBehind, 2, UDim2.new(0.5,-3,1,0))
+
+    local r3 = buildRow(c1, 4)
+    buildButton(r3, "TP All to Me", actAllToMe, 1, UDim2.new(0.5,-3,1,0))
+    local lc = new("Frame", {Size = UDim2.new(0.5,-3,1,0), BackgroundTransparency = 1, LayoutOrder = 2, ZIndex = ZI}, r3)
+    local lt = buildToggle(lc, "Loop TP", false, actLoop, 1)
+    lt.Size = UDim2.new(1,0,1,0)
+
+    local radiusSlider, radiusApi = buildSlider(c1, "TP Radius", tpRadiusValue, 0, 1000, function(v)
+        setRadius(v)
+    end, 5)
+    _G._kurayamiRadiusApi = radiusApi
+
+    local rRadius = buildRow(c1, 6)
+    local radiusCustomBox = buildTextbox(rRadius, "Custom radius...", "", function(t) _G._kurayamiRadiusBuf = t end, 1)
+    radiusCustomBox.Size = UDim2.new(0.6, -3, 1, 0)
+    buildButton(rRadius, "Apply", function()
+        local v = tonumber(_G._kurayamiRadiusBuf)
+        if not v or v <= 0 then Notify("Error", "Invalid radius", "error"); return end
+        v = math.floor(v)
+        setRadius(v)
+        if v > 1000 then radiusApi.SetVisual(1000, v)
+        else radiusApi.SetVisual(v) end
+        Notify("Radius", "Set to "..v, "success", 1.5)
+    end, 2, UDim2.new(0.4, -3, 1, 0))
+
+    local ringToggleRow, ringToggleApi = buildToggle(c1, "Show Radius Ring", false, function(s) setRingEnabled(s) end, 7)
+    _G._kurayamiRingToggle = function(v) if ringToggleApi then ringToggleApi.SetState(v) end end
+
+    local rOpen = buildRow(c1, 8)
+    buildButton(rOpen, "Open Mini TP Menu", function()
+        if miniGui and miniGui.Parent then
+            miniHolder.Visible = true
+        end
+    end, 1, UDim2.new(1, 0, 1, 0))
+
+    buildSection(content, "COORDINATE TELEPORT", 3)
+    local c2 = buildCard(content, 4)
+    local cbox = buildTextbox(c2, "X,Y,Z (ex: 100,50,200)", "", function(t) curCoords = t end, 1)
+    local r4 = buildRow(c2, 2)
+    buildButton(r4, "TP to Coords", function()
+        local pts = {}
+        for n in string.gmatch(curCoords, "([^,]+)") do table.insert(pts, tonumber(n)) end
+        if #pts == 3 then
+            ShowConfirm("Teleport", "Teleport to ("..pts[1]..", "..pts[2]..", "..pts[3]..")?", function() TP.toCoords(pts[1],pts[2],pts[3]) end)
+        else Notify("Error", "Invalid coords", "error") end
+    end, 1, UDim2.new(0.5,-3,1,0))
+    buildButton(r4, "Copy My Pos", function()
+        local h = getHRP(plr.Character)
+        if h then
+            local p = h.Position; local s = string.format("%d,%d,%d", p.X, p.Y, p.Z)
+            curCoords = s; cbox.Text = s
+            if setclipboard then pcall(function() setclipboard(s) end) end
+            Notify("Copy", s, "info")
+        end
+    end, 2, UDim2.new(0.5,-3,1,0))
+
+    buildSection(content, "MOUSE TELEPORT", 5)
+    local c3 = buildCard(content, 6)
+    local r5 = buildRow(c3, 1)
+    buildButton(r5, "TP to Mouse", function() ShowConfirm("Teleport", "Teleport to mouse?", function() TP.toMouse() end) end, 1, UDim2.new(0.5,-3,1,0))
+    local ctC = new("Frame", {Size = UDim2.new(0.5,-3,1,0), BackgroundTransparency = 1, LayoutOrder = 2, ZIndex = ZI}, r5)
+    local ctT = buildToggle(ctC, "Click TP", false, function(s) if s then TP.enableClickTP() else TP.disableClickTP() end end, 1)
+    ctT.Size = UDim2.new(1,0,1,0)
+
+    local aimCard = buildCard(c3, 2)
+    local aimDotRow, aimDotToggleApi = buildToggle(aimCard, "Show Aim Dot", false, function(s) aimDot.Visible = s end, 1)
+    _G._kurayamiAimDotToggle = function(v) if aimDotToggleApi then aimDotToggleApi.SetState(v) end end
+
+    local dotSliderRow, dotSliderApi = buildSlider(aimCard, "Dot Size", 14, 6, 40, function(v) _dotSize = v; setDotSize(v) end, 2)
+    _G._kurayamiDotSizeApi = dotSliderApi
+
+    new("TextLabel", {Size = UDim2.new(1,0,0,16), BackgroundTransparency = 1, Text = "Dot Color", TextColor3 = C.ColorTextDim, Font = Enum.Font.SourceSans, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 3, ZIndex = ZI}, aimCard)
+    local colorRow = buildRow(aimCard, 4)
+    local colors = {
+        {name = "W", c = Color3.fromRGB(255,255,255)},
+        {name = "R", c = Color3.fromRGB(255,80,80)},
+        {name = "G", c = Color3.fromRGB(80,255,120)},
+        {name = "B", c = Color3.fromRGB(80,180,255)},
+    }
+    for i, cl in ipairs(colors) do
+        local b = new("TextButton", {
+            Size = UDim2.new(0,32,1,0), BackgroundColor3 = cl.c,
+            Text = cl.name, TextColor3 = Color3.fromRGB(0,0,0),
+            Font = Enum.Font.SourceSansBold, TextSize = 11, BorderSizePixel = 0,
+            AutoButtonColor = false, LayoutOrder = i, ZIndex = ZI,
+        }, colorRow)
+        corner(b, 6)
+        b.MouseButton1Click:Connect(function() setDotColor(cl.c) end)
+    end
+
+    buildSection(content, "WAYPOINT", 7)
+    local c4 = buildCard(content, 8)
+    buildTextbox(c4, "Waypoint name...", "", function(t) wpNameBuf = t end, 1)
+
+    local rWp1 = buildRow(c4, 2)
+    buildButton(rWp1, "Save Here", function()
+        if wpNameBuf == "" then Notify("Error", "Set name", "error"); return end
+        TP.saveWp(wpNameBuf, nil)
+        if _G._kurayamiRefreshWpList then _G._kurayamiRefreshWpList() end
+    end, 1, UDim2.new(0.5,-3,1,0))
+    buildButton(rWp1, "Save From Coords", function()
+        if wpNameBuf == "" then Notify("Error", "Set name", "error"); return end
+        if curCoords == "" then Notify("Error", "Set coords first", "error"); return end
+        local pts = {}
+        for n in string.gmatch(curCoords, "([^,]+)") do table.insert(pts, tonumber(n)) end
+        if #pts == 3 then
+            TP.saveWp(wpNameBuf, Vector3.new(pts[1],pts[2],pts[3]))
+            if _G._kurayamiRefreshWpList then _G._kurayamiRefreshWpList() end
+        else Notify("Error", "Invalid coords", "error") end
+    end, 2, UDim2.new(0.5,-3,1,0))
+
+    local _, wpdd = buildDropdown(c4, "Select waypoint...", 3)
+    wpdd.OnSelect(function(n) selWP = n end)
+
+    _G._kurayamiRefreshWpList = function()
+        local list = {}
+        for n, _ in pairs(savedWaypoints) do table.insert(list, n) end
+        table.sort(list); wpdd.SetOptions(list)
+    end
+    _G._kurayamiRefreshWpList()
+
+    local rWp2 = buildRow(c4, 4)
+    buildButton(rWp2, "Load", function()
+        if not selWP then Notify("Error", "Select waypoint", "error"); return end
+        local n = selWP
+        ShowConfirm("Waypoint", "Teleport to ["..n.."]?", function() TP.loadWp(n) end)
+    end, 1, UDim2.new(0.5,-3,1,0))
+    buildButton(rWp2, "Delete", function()
+        if not selWP then Notify("Error", "Select waypoint", "error"); return end
+        local n = selWP
+        ShowConfirm("Delete", "Delete ["..n.."]?", function()
+            TP.deleteWp(n); selWP = nil; wpdd.SetPlaceholder("Select waypoint...")
+            if _G._kurayamiRefreshWpList then _G._kurayamiRefreshWpList() end
+        end)
+    end, 2, UDim2.new(0.5,-3,1,0))
+
+    local rWp3 = buildRow(c4, 5)
+    buildButton(rWp3, "Rename", function()
+        if not selWP then Notify("Error", "Select waypoint", "error"); return end
+        if wpNameBuf == "" then Notify("Error", "Set new name", "error"); return end
+        TP.renameWp(selWP, wpNameBuf); selWP = wpNameBuf
+        if _G._kurayamiRefreshWpList then _G._kurayamiRefreshWpList() end
+    end, 1, UDim2.new(0.5,-3,1,0))
+    buildButton(rWp3, "Update Pos", function()
+        if not selWP then Notify("Error", "Select waypoint", "error"); return end
+        local n = selWP
+        ShowConfirm("Update", "Update position of ["..n.."]?", function()
+            local h = getHRP(plr.Character); if h then TP.updateWp(n, h.Position) end
+            if _G._kurayamiRefreshWpList then _G._kurayamiRefreshWpList() end
+        end)
+    end, 2, UDim2.new(0.5,-3,1,0))
+
+    local rWp4 = buildRow(c4, 6)
+    buildButton(rWp4, "Refresh List", function()
+        if _G._kurayamiRefreshWpList then _G._kurayamiRefreshWpList() end
+        Notify("Waypoint", "Refreshed", "info", 1.2)
+    end, 1, UDim2.new(1,0,1,0))
+end
+
+local function buildVisualPage()
+    buildPlaceholderPage("Visual", "Visual overlay and rendering tweaks",
+        "ESP, Boxes, Names, Health, Tracers, Fullbright, FOV, Fog Removal")
+end
+local function buildCombatPage()
+    buildPlaceholderPage("Combat", "Weapon and targeting enhancements",
+        "Aimbot, Camera Lock, Silent Aim, FOV Circle, Kill Aura, Reach, Rapid Fire")
+end
+local function buildTrollPage()
+    buildPlaceholderPage("Troll", "Fun tools to mess with other players",
+        "Fling, Freeze, Spin, Drag, Orbit, Resize, Random TP, Animation Spam")
+end
+local function buildWorldPage()
+    buildPlaceholderPage("World", "Manipulate the environment",
+        "Gravity, Time Scale, Freeze World, Bring Items, Auto Collect, Remove Objects")
+end
+local function buildUtilityPage()
+    buildPlaceholderPage("Utility", "Miscellaneous helpers and tools",
+        "Anti-AFK, Auto Rejoin, Anti Kick, Auto Clicker, Ping Boost, Server Region")
+end
+local function buildScriptLoaderPage()
+    buildPlaceholderPage("Script Loader", "Load external scripts via URL",
+        "Script URL input, Load button, Script list, Presets")
+end
+
+local function buildConfigPage()
+    clearContent()
+
+    buildSection(content, "AUTO-LOAD", 1)
+    local ca = buildCard(content, 2)
+    local autoloadLbl = new("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1,
+        Text = "Current: " .. (currentAutoload or "none"),
+        TextColor3 = currentAutoload and C.ColorGreen or C.ColorTextDim,
+        Font = Enum.Font.SourceSansBold, TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 1, ZIndex = ZI,
+    }, ca)
+
+    buildSection(content, "CONFIG MANAGER", 3)
+    local c1 = buildCard(content, 4)
+    buildTextbox(c1, "Config name...", "", function(t) configNameBuf = t end, 1)
+
+    local r1 = buildRow(c1, 2)
+    buildButton(r1, "Save Config", function()
+        if configNameBuf == "" then Notify("Error", "Set config name", "error"); return end
+        if saveConfigNamed(configNameBuf) then
+            if _G._kurayamiRefreshConfigList then _G._kurayamiRefreshConfigList() end
+        end
+    end, 1, UDim2.new(0.5, -3, 1, 0))
+    buildButton(r1, "Refresh List", function()
+        loadAllConfigs()
+        if _G._kurayamiRefreshConfigList then _G._kurayamiRefreshConfigList() end
+        Notify("Config", "Refreshed", "info", 1.2)
+    end, 2, UDim2.new(0.5, -3, 1, 0))
+
+    local _, cdd = buildDropdown(c1, "Select config...", 3)
+    cdd.OnSelect(function(n) selConfig = n end)
+
+    _G._kurayamiRefreshConfigList = function()
+        cdd.SetOptions(getConfigList())
+    end
+    _G._kurayamiRefreshConfigList()
+
+    local r2 = buildRow(c1, 4)
+    buildButton(r2, "Load Config", function()
+        if not selConfig then Notify("Error", "Select config", "error"); return end
+        local n = selConfig
+        ShowConfirm("Load Config", "Load config ["..n.."]?", function() loadConfigNamed(n) end)
+    end, 1, UDim2.new(0.5, -3, 1, 0))
+    buildButton(r2, "Delete Config", function()
+        if not selConfig then Notify("Error", "Select config", "error"); return end
+        local n = selConfig
+        ShowConfirm("Delete Config", "Delete config ["..n.."]?", function()
+            deleteConfigNamed(n)
+            selConfig = nil
+            cdd.SetPlaceholder("Select config...")
+            if _G._kurayamiRefreshConfigList then _G._kurayamiRefreshConfigList() end
+            autoloadLbl.Text = "Current: " .. (currentAutoload or "none")
+            autoloadLbl.TextColor3 = currentAutoload and C.ColorGreen or C.ColorTextDim
+        end)
+    end, 2, UDim2.new(0.5, -3, 1, 0))
+
+    buildSection(content, "AUTO-LOAD CONTROL", 5)
+    local c2 = buildCard(content, 6)
+    local r3 = buildRow(c2, 1)
+    buildButton(r3, "Set Auto-Load", function()
+        if not selConfig then Notify("Error", "Select config", "error"); return end
+        setAutoload(selConfig)
+        autoloadLbl.Text = "Current: " .. selConfig
+        autoloadLbl.TextColor3 = C.ColorGreen
+    end, 1, UDim2.new(0.5, -3, 1, 0))
+    buildButton(r3, "Remove Auto-Load", function()
+        if not currentAutoload then Notify("Error", "No auto-load set", "error"); return end
+        clearAutoload()
+        autoloadLbl.Text = "Current: none"
+        autoloadLbl.TextColor3 = C.ColorTextDim
+    end, 2, UDim2.new(0.5, -3, 1, 0))
+
+    buildSection(content, "DANGER ZONE", 7)
+    local c3 = buildCard(content, 8)
+    local unloadBtn = buildButton(c3, "Unload Script", actUnload, 1)
+    unloadBtn.TextColor3 = C.ColorRed
+end
+
+local function buildScriptPage()
+    clearContent()
+    buildSection(content, "SCRIPT INFO", 1)
+    local c1 = buildCard(content, 2)
+    buildInfoRow(c1, "Name", "Kurayami-Hub", 1)
+    buildInfoRow(c1, "Version", "v20", 2)
+    buildInfoRow(c1, "Author", "Kur4yami2", 3)
+    buildInfoRow(c1, "Release", "12 February 2026", 4)
+
+    buildSection(content, "CHANGELOG", 3)
+    local c2 = buildCard(content, 4)
+    new("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1,
+        Text = "v20\n• GitHub theme assets\n• Edge/ambient particles\n• Animated border\n• \"In Development\" labels\n\nv18\n• Test Area\n• DisplayOrder scheme 1998-2003\n• White flat radius ring\n• Red Unload button\n\nv17\n• Fly Menu Integration\n\nv16\n• Reorganized categories\n\nv15\n• Per-map waypoints\n• Auto-Load system",
+        TextColor3 = C.ColorTextDim, Font = Enum.Font.SourceSans, TextSize = 11,
+        TextWrapped = true, AutomaticSize = Enum.AutomaticSize.Y,
+        TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 1, ZIndex = ZI,
+    }, c2)
+
+    buildSection(content, "JOIN DISCORD!", 5)
+    local c3 = buildCard(content, 6)
+
+    new("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1,
+        Text = "Get updates, feature suggestions, bug reports, and more!",
+        TextColor3 = C.ColorTextDim, Font = Enum.Font.SourceSans, TextSize = 11,
+        TextWrapped = true, AutomaticSize = Enum.AutomaticSize.Y,
+        TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 1, ZIndex = ZI,
+    }, c3)
+
+    local rDc = buildRow(c3, 2)
+    buildButton(rDc, "Join Discord!", function()
+        pcall(function()
+            game:GetService("GuiService"):OpenBrowserWindow("https://discord.gg/placeholder")
+        end)
+        Notify("Discord", "Opening in browser...", "info", 1.5)
+    end, 1, UDim2.new(0.5, -3, 1, 0))
+    buildButton(rDc, "Copy Link", function()
+        if setclipboard then
+            pcall(function() setclipboard("https://discord.gg/placeholder") end)
+            Notify("Discord", "Link copied", "success", 1.5)
+        end
+    end, 2, UDim2.new(0.5, -3, 1, 0))
+end
+
+local function buildServerPage()
+    clearContent()
+    buildSection(content, "SERVER INFO", 1)
+    local c1 = buildCard(content, 2)
+    buildInfoRow(c1, "Job ID", game.JobId, 1)
+    buildInfoRow(c1, "Place ID", tostring(game.PlaceId), 2)
+    buildInfoRow(c1, "Players", #Players:GetPlayers() .. "/" .. Players.MaxPlayers, 3)
+    buildInfoRow(c1, "Region", "Auto", 4)
+
+    buildSection(content, "SERVER ACTIONS", 3)
+    local c2 = buildCard(content, 4)
+    local r1 = buildRow(c2, 1)
+    buildButton(r1, "Rejoin", actRejoin, 1, UDim2.new(0.5, -3, 1, 0))
+    buildButton(r1, "Server Hop", actHop, 2, UDim2.new(0.5, -3, 1, 0))
+end
+
+local function buildKeybindsPage()
+    buildPlaceholderPage("Keybinds", "Customize hotkeys for features",
+        "Toggle UI, TP Hotkey, Fly, Speed, Aimbot Lock, Per-feature binds")
+end
+local function buildUISettingsPage()
+    buildPlaceholderPage("UI Settings", "Customize interface appearance",
+        "Theme, Accent Color, UI Scale, Transparency, Animation Speed, Compact Mode")
+end
+local function buildCreditsPage()
+    clearContent()
+    buildSection(content, "CREDITS", 1)
+    local c1 = buildCard(content, 2)
+
+    new("TextLabel", {Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1,
+        Text = "Kurayami-Hub", TextColor3 = C.ColorText,
+        Font = Enum.Font.SourceSansBold, TextSize = 16,
+        TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 1, ZIndex = ZI}, c1)
+    new("TextLabel", {Size = UDim2.new(1, 0, 0, 18), BackgroundTransparency = 1,
+        Text = "Developer: Kur4yami2", TextColor3 = C.ColorTextDim,
+        Font = Enum.Font.SourceSans, TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 2, ZIndex = ZI}, c1)
+    new("TextLabel", {Size = UDim2.new(1, 0, 0, 18), BackgroundTransparency = 1,
+        Text = "Special thanks to all contributors", TextColor3 = C.ColorTextDim,
+        Font = Enum.Font.SourceSans, TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 3, ZIndex = ZI}, c1)
+    new("TextLabel", {Size = UDim2.new(1, 0, 0, 18), BackgroundTransparency = 1,
+        Text = "Built with care for the community", TextColor3 = C.ColorTextDim,
+        Font = Enum.Font.SourceSans, TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 4, ZIndex = ZI}, c1)
+end
+
+--============================================================
+--  SIDEBAR
+--============================================================
+local currentBtn = nil
+local function selectPage(builder, btn)
+    if currentBtn then
+        tween(currentBtn, 0.08, {BackgroundColor3 = C.ColorBgItem, BackgroundTransparency = 0.4})
+        currentBtn.TextColor3 = C.ColorText
+    end
+    btn.BackgroundColor3 = C.ColorBorderBright
+    btn.BackgroundTransparency = 0
+    btn.TextColor3 = C.ColorTextActive
+    currentBtn = btn
+    if builder then builder() end
+end
+
+local firstTeleportBtn = nil
+local categories = {
+    {
+        name = "MAIN",
+        pages = {
+            {name = "Info",      builder = buildInfoPage},
+            {name = "Player",    builder = buildPlayerPage},
+            {name = "Teleport",  builder = buildTeleportPage},
+            {name = "Visual",    builder = buildVisualPage},
+            {name = "Combat",    builder = buildCombatPage},
+        }
+    },
+    {
+        name = "EXCLUSIVE",
+        pages = {
+            {name = "Troll",     builder = buildTrollPage},
+            {name = "Script",    builder = buildScriptLoaderPage},
+            {name = "World",     builder = buildWorldPage},
+            {name = "Utility",   builder = buildUtilityPage},
+        }
+    },
+    {
+        name = "SETTINGS",
+        pages = {
+            {name = "Config",     builder = buildConfigPage},
+            {name = "Script",     builder = buildScriptPage},
+            {name = "Server",     builder = buildServerPage},
+            {name = "Keybinds",   builder = buildKeybindsPage},
+            {name = "UI",         builder = buildUISettingsPage},
+            {name = "Credits",    builder = buildCreditsPage},
+        }
+    }
+}
+
+for ci, cat in ipairs(categories) do
+    local pageCount = #cat.pages
+    local expandedHeight = 28 + 4 + (pageCount * 32) + 4
+    local collapsedHeight = 28
+
+    local catWrap = new("Frame", {
+        Size = UDim2.new(1,0,0, expandedHeight),
+        BackgroundTransparency = 1, LayoutOrder = ci, ZIndex = ZI, ClipsDescendants = true,
+    }, sideScroll)
+
+    local catBtn = new("TextButton", {
+        Size = UDim2.new(1,0,0,28), BackgroundColor3 = C.ColorBgHeader,
+        BackgroundTransparency = 0.3, BorderSizePixel = 0, Text = "",
+        AutoButtonColor = false, ZIndex = ZI,
+    }, catWrap)
+    corner(catBtn, 6)
+
+    local arrowLbl = new("TextLabel", {
+        Size = UDim2.new(0,16,0,28), Position = UDim2.new(0,8,0,0),
+        BackgroundTransparency = 1, Text = "v",
+        TextColor3 = C.ColorBorderBright, TextSize = 12,
+        Font = Enum.Font.SourceSansBold,
+        TextXAlignment = Enum.TextXAlignment.Center,
+        ZIndex = ZI+1, Rotation = 0,
+    }, catBtn)
+
+    new("TextLabel", {
+        Size = UDim2.new(1,-30,1,0), Position = UDim2.new(0,28,0,0),
+        BackgroundTransparency = 1, Text = cat.name,
+        TextColor3 = C.ColorText, Font = Enum.Font.SourceSansBold,
+        TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = ZI+1,
+    }, catBtn)
+
+    local subCont = new("Frame", {
+        Size = UDim2.new(1,-10,0, pageCount * 32), Position = UDim2.new(0,10,0,32),
+        BackgroundTransparency = 1, ZIndex = ZI,
+    }, catWrap)
+    new("UIListLayout", {Padding = UDim.new(0,2), SortOrder = Enum.SortOrder.LayoutOrder}, subCont)
+
+    for i, page in ipairs(cat.pages) do
+        local btn = new("TextButton", {
+            Size = UDim2.new(1,0,0,30), BackgroundColor3 = C.ColorBgItem,
+            BackgroundTransparency = 0.4, BorderSizePixel = 0,
+            Text = "  "..page.name, TextColor3 = C.ColorText,
+            Font = Enum.Font.SourceSans, TextSize = 12,
+            TextXAlignment = Enum.TextXAlignment.Left,
+                        AutoButtonColor = false, LayoutOrder = i, ZIndex = ZI,
+        }, subCont)
+        corner(btn, 6)
+
+        btn.MouseEnter:Connect(function()
+            if currentBtn ~= btn then tween(btn, 0.08, {BackgroundTransparency = 0.15}) end
+        end)
+        btn.MouseLeave:Connect(function()
+            if currentBtn ~= btn then tween(btn, 0.08, {BackgroundTransparency = 0.4}) end
+        end)
+        btn.MouseButton1Click:Connect(function() selectPage(page.builder, btn) end)
+        if page.builder == buildTeleportPage and not firstTeleportBtn then firstTeleportBtn = btn end
+    end
+
+    local expanded = true
+    catBtn.MouseButton1Click:Connect(function()
+        expanded = not expanded
+        tween(arrowLbl, 0.15, {Rotation = expanded and 0 or -90}, Enum.EasingStyle.Quad)
+        tween(catWrap, 0.18, {Size = UDim2.new(1,0,0, expanded and expandedHeight or collapsedHeight)}, Enum.EasingStyle.Quad)
+        if not expanded then
+            task.delay(0.18, function() if not expanded then subCont.Visible = false end end)
+        else
+            subCont.Visible = true
+        end
+    end)
+end
+
+if firstTeleportBtn then selectPage(buildTeleportPage, firstTeleportBtn) end
+
+--============================================================
+--  ANIMATION & DRAG
+--============================================================
+local isOpen = false
+local isCollapsed = false
+local fullSize = UDim2.new(C.WindowScaleX, 0, C.WindowScaleY, 0)
+local collapsedSize = UDim2.new(C.WindowScaleX, 0, 0, C.HeaderHeight + C.BottomBarHeight)
+
+local function updateTglBtn()
+    tween(btnTgl, 0.15, {Rotation = isCollapsed and 45 or 0}, Enum.EasingStyle.Quad)
+end
+
+local function expandWindow()
+    if not isCollapsed then return end
+    isCollapsed = false
+    holder.Position = UDim2.new(0.5,0,0.5,0)
+    tween(holder, 0.2, {Size = fullSize}, Enum.EasingStyle.Back)
+    updateTglBtn()
+end
+local function collapseWindow()
+    if isCollapsed then return end
+    isCollapsed = true
+    tween(holder, 0.2, {Size = collapsedSize}, Enum.EasingStyle.Back)
+    updateTglBtn()
+end
+
+btnTgl.MouseButton1Click:Connect(function()
+    if isCollapsed then expandWindow() else collapseWindow() end
+end)
+
+local function openWindow()
+    if isOpen then return end
+    isOpen = true; holder.Visible = true
+    holderScale.Scale = 0.25
+    tween(holderScale, 0.25, {Scale = 1}, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+end
+local function closeWindow()
+    if not isOpen then return end
+    isOpen = false
+    tween(holderScale, 0.15, {Scale = 0.25})
+    task.wait(0.18); if not isOpen then holder.Visible = false end
+end
+
+local function makeDraggable(dObj)
+    local dg, ds, sp
+    dObj.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            dg = true; ds = i.Position; sp = holder.Position
+        end
+    end)
+    UIS.InputChanged:Connect(function(i)
+        if dg and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+            local d = i.Position - ds
+            local nx = sp.X.Offset + d.X; local ny = sp.Y.Offset + d.Y
+            local vp = workspace.CurrentCamera.ViewportSize
+            nx = clamp(nx, -vp.X/2 + 40, vp.X/2 - 40)
+            ny = clamp(ny, -vp.Y/2 + 40, vp.Y/2 - 40)
+            holder.Position = UDim2.new(sp.X.Scale, nx, sp.Y.Scale, ny)
+        end
+    end)
+    UIS.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dg = false end
+    end)
+end
+makeDraggable(header)
+makeDraggable(bottomBar)
+
+do
+    local dg, mv, ds, sp
+    toggle.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            dg = true; mv = false; ds = i.Position; sp = toggle.Position
+        end
+    end)
+    UIS.InputChanged:Connect(function(i)
+        if dg and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+            local d = i.Position - ds
+            if math.abs(d.X) + math.abs(d.Y) > 8 then mv = true end
+            if mv then
+                local np = UDim2.new(sp.X.Scale, sp.X.Offset + d.X, sp.Y.Scale, sp.Y.Offset + d.Y)
+                toggle.Position = np; toggleRing.Position = np
+            end
+        end
+    end)
+    UIS.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            if dg and not mv then
+                if isOpen then closeWindow() else openWindow() end
+            end
+            dg = false; mv = false
+        end
+    end)
+end
+
+--============================================================
+--  INIT
+--============================================================
+wpFolder = new("Folder", {Name = "KurayamiWaypoints"}, workspace)
+loadAllConfigs()
+loadAutoloadSetting()
+loadWaypoints()
+_G._kurayamiStartTime = tick()
+openWindow()
+
+if currentAutoload and allConfigs[currentAutoload] then
+    task.delay(0.8, function()
+        loadConfigNamed(currentAutoload)
+        Notify("Auto-Load", "Loaded: "..currentAutoload, "success", 2.5)
+    end)
+end
+
+task.delay(0.4, function() Notify("Kurayami-Hub", "Loaded | v20", "success", 3) end)
+
+--============================================================
+--  ⭐ SIGNAL LOADER: แจ้งหน้าโหลดว่าเมนูพร้อมแล้ว
+--============================================================
+if _G.KurayamiReadyEvent then
+    pcall(function()
+        _G.KurayamiReadyEvent:Fire()
+    end)
+end
